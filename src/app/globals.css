@@ -2,18 +2,98 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- Base Styles & Aurora Effect --- */
+:root {
+  --background-dark: #0a0a0f;
+  --surface-dark: rgba(22, 27, 34, 0.6);
+  --primary-blue: #388bfd;
+  --primary-purple: #8A2BE2;
+  --text-primary: #f0f6fc;
+  --text-secondary: #8b949e;
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+
 body {
-  @apply bg-background-dark text-text-primary overflow-x-hidden;
+  color: var(--text-primary);
+  background: var(--background-dark);
+  overflow-x: hidden;
 }
 
 body::before {
   content: '';
   position: fixed;
-  inset: 0;
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  bottom: 0;
   background: 
       radial-gradient(circle at 15% 25%, rgba(56, 139, 253, 0.15), transparent 40%),
       radial-gradient(circle at 85% 65%, rgba(138, 43, 226, 0.15), transparent 40%);
   filter: blur(75px);
   z-index: -1;
   animation: move-glow 25s infinite alternate ease-in-out;
+}
+
+@keyframes move-glow {
+  from { transform: translate(-20%, 10%) scale(1); }
+  to { transform: translate(20%, -10%) scale(1.2); }
+}
+
+/* --- THE FIX IS HERE 👇: Editor.js Dark Mode Overrides --- */
+.codex-editor--narrow .codex-editor__redactor {
+  margin-right: 0;
+}
+
+.ce-block__content,
+.ce-toolbar__content {
+  max-width: none;
+}
+
+#editorjs h1,
+#editorjs h2,
+#editorjs h3,
+#editorjs h4,
+#editorjs h5,
+#editorjs h6 {
+  color: var(--text-primary);
+}
+
+#editorjs .ce-paragraph {
+  color: var(--text-secondary);
+}
+
+#editorjs .ce-placeholder {
+  color: var(--text-secondary) !important;
+  opacity: 0.6;
+}
+/* --- Tiptap Code Block Styling (for Terminal look) --- */
+.tiptap pre {
+  background: #0D1117; /* GitHub Dark background */
+  color: #c9d1d9; /* GitHub Dark text */
+  font-family: 'Fira Code', monospace;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
+  white-space: pre-wrap;
+}
+
+.tiptap pre code {
+  color: inherit;
+  padding: 0;
+  background: none;
+  font-size: 0.9em;
+}
+
+/* Basic Syntax Highlighting Colors */
+.tiptap .hljs-comment {
+  color: #8b949e; /* Gray */
+}
+.tiptap .hljs-keyword {
+  color: #ff7b72; /* Red */
+}
+.tiptap .hljs-string {
+  color: #a5d6ff; /* Blue */
+}
+.tiptap .hljs-number {
+  color: #79c0ff; /* Light Blue */
 }

@@ -1,84 +1,123 @@
-import React from 'react';
+'use client'; // الخطوة 1: نحول الصفحة إلى Client Component
+
+import React, { useState, useEffect } from 'react'; // نستورد أدوات التفاعل
 import Link from 'next/link';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 
-// --- Mock Data (بيانات مؤقتة) ---
-// In the future, this data will come from our database.
-const mockTopics = [
-    { id: 'intro', title: 'مقدمة عن الشبكات' },
-    { id: 'osi-model', title: 'نموذج OSI' },
-    { id: 'ip-addressing', title: 'عنونة IP' },
-    { id: 'subnetting', title: 'تقسيم الشبكات (Subnetting)' },
-    { id: 'routing-protocols', title: 'بروتوكولات التوجيه' },
-];
+// --- Reusable Component to Render Content Blocks (No changes) ---
+const ContentBlock = ({ block }) => {
+    switch (block.type) {
+        case 'subheading': //  كيفية عرض العنوان الفرعي
+            return <h3 className="text-2xl font-bold mt-8 mb-4 border-b border-border-color pb-2">{block.data}</h3>;
+        case 'paragraph':
+            return <p className="text-lg text-text-secondary">{block.data.en}</p>;
+        case 'ciscoTerminal':
+            return (
+                <div className="my-6 overflow-hidden rounded-lg border border-border-color bg-black/80 font-mono text-base">
+                    <div className="border-b border-border-color bg-surface-dark p-2 text-xs text-text-secondary">
+                        Terminal
+                    </div>
+                    <pre className="overflow-x-auto p-4">
+                        <code className="text-green-400">{block.data}</code>
+                    </pre>
+                </div>
+            );
+        default:
+            return null;
+    }
+};
 
-// This is the template for all material pages
 export default function MaterialPage({ params }) {
-    // We use a simple function to make the title more readable
-    const formatSlug = (slug) => {
-        return slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    };
+    const { slug } = params;
+    
+    // --- State Management ---
+    const [material, setMaterial] = useState(null);
+    const [topics, setTopics] = useState([]);
+    const [selectedTopic, setSelectedTopic] = useState(null); // الخطوة 2: حالة لتخزين الشرح المحدد
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Fetch all data on component load
+    useEffect(() => {
+        const fetchData = async () => {
+            // Fetch material details
+            const matQuery = query(collection(db, 'materials'), where('slug', '==', slug));
+            const matSnapshot = await getDocs(matQuery);
+            if (!matSnapshot.empty) {
+                setMaterial(matSnapshot.docs[0].data());
+            }
+
+            // Fetch topics for the material
+            const topicsQuery = query(collection(db, 'topics'), where('materialSlug', '==', slug), orderBy('order', 'asc'));
+            const topicsSnapshot = await getDocs(topicsQuery);
+            const topicsList = topicsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setTopics(topicsList);
+
+            // Set the first topic as the selected one initially
+            if (topicsList.length > 0) {
+                setSelectedTopic(topicsList[0]);
+            }
+            
+            setIsLoading(false);
+        };
+
+        fetchData();
+    }, [slug]);
+
+    if (isLoading) {
+        return <p className="text-center p-10">جاري تحميل محتوى المادة...</p>;
+    }
+
+    if (!material) {
+        return <p className="text-center p-10">المادة غير موجودة.</p>;
+    }
 
     return (
         <div className="mx-auto max-w-7xl p-6 font-sans">
-            <header className="mb-8 flex items-center justify-between py-4 border-b border-border-color">
-                <Link href="/hub" className="text-3xl font-bold text-text-primary no-underline">
-                    Kawn<span className="text-primary-blue">Hub</span>
-                </Link>
-                <nav>
-                    {/* THE FIX IS HERE 👇: This now links back to the hub */}
-                    <Link href="/hub" className="text-text-secondary transition-colors hover:text-text-primary font-medium flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                        <span>العودة للمنصة</span>
-                    </Link>
-                </nav>
-            </header>
+            {/* ... Header (No Changes) ... */}
+            <header className="mb-8 flex items-center justify-between border-b border-border-color py-4"> <Link href="/hub" className="text-3xl font-bold text-text-primary no-underline"> Kawn<span className="text-primary-blue">Hub</span> </Link> <nav> <Link href="/hub" className="flex items-center gap-2 font-medium text-text-secondary transition-colors hover:text-text-primary"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg> <span>العودة للمنصة</span> </Link> </nav> </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-                {/* --- Sidebar (Navigation) --- */}
+            <div className="grid grid-cols-1 gap-12 md:grid-cols-4">
+                {/* --- Interactive Sidebar --- */}
                 <aside className="md:col-span-1">
                     <div className="sticky top-8">
-                        <h2 className="text-xl font-bold mb-4 text-text-primary">مواضيع المادة</h2>
+                        <h2 className="mb-1 text-2xl font-bold text-text-primary">{material.title}</h2>
+                        <p className="mb-4 text-sm text-text-secondary">{material.courseCode}</p>
+                        <hr className="border-border-color mb-4" />
                         <ul className="space-y-3">
-                            {mockTopics.map((topic) => (
+                            {topics.map((topic) => (
                                 <li key={topic.id}>
-                                    <a href="#" className="block text-text-secondary hover:text-text-primary hover:bg-surface-dark p-2 rounded-md transition-colors">
+                                    {/* الخطوة 3: الزر يغير الشرح المحدد */}
+                                    <button 
+                                        onClick={() => setSelectedTopic(topic)}
+                                        className={`block w-full text-right rounded-md p-2 transition-colors ${selectedTopic?.id === topic.id ? 'bg-primary-blue/10 text-primary-blue font-bold' : 'text-text-secondary hover:bg-surface-dark hover:text-text-primary'}`}
+                                    >
                                         {topic.title}
-                                    </a>
+                                    </button>
                                 </li>
                             ))}
                         </ul>
                     </div>
                 </aside>
 
-                {/* --- Main Content --- */}
+                {/* --- Dynamic Main Content --- */}
                 <main className="md:col-span-3">
                     <div className="prose prose-invert max-w-none">
-                        <h1 className="text-4xl font-bold text-text-primary mb-4">
-                           {/* We show a placeholder title for now */}
-                           مقدمة عن {formatSlug(params.slug)}
-                        </h1>
-                        <p className="text-lg text-text-secondary">
-                            هذا هو الشرح الخاص بالموضوع المحدد. سيتم هنا عرض الفقرات، القوائم، والأمثلة العملية بطريقة واضحة ومنظمة لتسهيل الفهم والمراجعة.
-                        </p>
-                        
-                        <h3 className="text-2xl font-bold mt-8">مثال عملي</h3>
-                        <p>لتطبيق هذا المفهوم، نستخدم الأمر التالي في واجهة الأوامر:</p>
-                        
-                        {/* Code Block Example */}
-                        <div className="bg-black/80 rounded-lg border border-border-color font-mono text-base overflow-hidden my-6">
-                           <div className="bg-surface-dark p-2 text-xs text-text-secondary border-b border-border-color">
-                                Terminal
-                           </div>
-                           <pre className="p-4 overflow-x-auto"><code>
-{`router> enable
-router# configure terminal
-router(config)# interface fa0/1
-router(config-if)# ip address 192.168.1.1 255.255.255.0
-router(config-if)# no shutdown`}
-                           </code></pre>
-                        </div>
-
-                        <p>بعد تنفيذ هذه الأوامر، سيتم تفعيل المنفذ وتعيين عنوان IP له، مما يسمح له بالاتصال بالشبكة.</p>
+                        {/* الخطوة 4: نعرض محتوى الشرح المحدد */}
+                        {selectedTopic ? (
+                            <>
+                                <h1 className="mb-4 text-4xl font-bold text-text-primary">
+                                   {selectedTopic.title}
+                                </h1>
+                                {selectedTopic.content.map((block, index) => (
+                                    <ContentBlock key={index} block={block} />
+                                ))}
+                            </>
+                        ) : (
+                            <p className="text-lg text-text-secondary">
+                                لا توجد شروحات لهذه المادة حاليًا.
+                            </p>
+                        )}
                     </div>
                 </main>
             </div>
