@@ -9,24 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@editorjs/editorjs": "^2.31.0",
-    "@editorjs/header": "^2.8.8",
-    "@editorjs/list": "^2.0.8",
-    "@editorjs/paragraph": "^2.11.7",
-    "@tiptap/extension-bubble-menu": "^3.7.2",
-    "@tiptap/extension-code-block-lowlight": "^3.7.2",
-    "@tiptap/extension-floating-menu": "^3.7.2",
-    "@tiptap/html": "^3.7.2",
-    "@tiptap/pm": "^3.7.2",
-    "@tiptap/react": "^3.7.2",
-    "@tiptap/starter-kit": "^3.7.2",
     "firebase": "^12.4.0",
-    "lowlight": "^3.3.0",
     "next": "15.5.5",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-hot-toast": "^2.6.0",
+    "react-select": "^5.10.2",
+    "react-syntax-highlighter": "^15.6.6"
   },
   "devDependencies": {
+    "@tailwindcss/aspect-ratio": "^0.4.2",
     "autoprefixer": "^10.4.21",
     "eslint": "^8",
     "eslint-config-next": "14.2.3",

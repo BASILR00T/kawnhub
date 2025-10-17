@@ -1,97 +1,161 @@
-'use client'; // الخطوة 1: نحول الصفحة إلى Client Component
+'use client'; 
 
-import React, { useState, useEffect } from 'react'; // نستورد أدوات التفاعل
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 
-// --- Reusable Component to Render Content Blocks (No changes) ---
-const ContentBlock = ({ block }) => {
+
+// --- Reusable Icon Components ---
+const CopyIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>);
+const ArrowLeftIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>);
+
+
+// --- Block Renderer Component (Final Version) ---
+const BlockRenderer = ({ block }) => {
+    const handleCopy = (code) => {
+        navigator.clipboard.writeText(code);
+        toast.success('تم نسخ الأمر بنجاح!');
+    };
+
     switch (block.type) {
-        case 'subheading': //  كيفية عرض العنوان الفرعي
-            return <h3 className="text-2xl font-bold mt-8 mb-4 border-b border-border-color pb-2">{block.data}</h3>;
+        case 'subheading':
+            const id = block.data.replace(/\s+/g, '-').toLowerCase();
+            return <h2 id={id} className="text-2xl font-bold mt-10 mb-4 border-b border-border-color pb-2">{block.data}</h2>;
+        
         case 'paragraph':
-            return <p className="text-lg text-text-secondary">{block.data.en}</p>;
+            return <p className="text-lg text-text-secondary my-4 leading-relaxed">{block.data.en}</p>;
+            
         case 'ciscoTerminal':
             return (
-                <div className="my-6 overflow-hidden rounded-lg border border-border-color bg-black/80 font-mono text-base">
-                    <div className="border-b border-border-color bg-surface-dark p-2 text-xs text-text-secondary">
-                        Terminal
-                    </div>
-                    <pre className="overflow-x-auto p-4">
-                        <code className="text-green-400">{block.data}</code>
-                    </pre>
+                <div className="my-6 relative group">
+                    <pre className="bg-black/80 rounded-lg border border-border-color font-mono text-base p-4 pt-8 overflow-x-auto"><code className="text-green-400">{block.data}</code></pre>
+                    <button onClick={() => handleCopy(block.data)} className="absolute top-2 right-2 bg-gray-700 text-white px-2 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        <CopyIcon /> نسخ
+                    </button>
                 </div>
             );
-        default:
-            return null;
+            
+        case 'note':
+            return <div className="my-4 p-4 border-r-4 border-red-500 bg-red-500/10 text-red-300 rounded-r-lg">{block.data.en}</div>;
+            
+        case 'orderedList':
+            return <ol className="list-decimal list-inside space-y-2 my-4 text-text-secondary text-lg pl-4">{block.data.map((item, i) => <li key={i}>{item}</li>)}</ol>;
+            
+       case 'videoEmbed':
+        return (
+            <div className="my-8 max-w-4xl mx-auto">
+                <div className="aspect-w-16 aspect-h-9">
+                    <iframe 
+                        src={block.data.url} 
+                        title={block.data.caption} 
+                        frameBorder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowFullScreen 
+                        className="w-full h-full rounded-lg shadow-lg"
+                    ></iframe>
+                </div>
+                {block.data.caption && <p className="text-center text-sm text-text-secondary mt-2">{block.data.caption}</p>}
+            </div>
+    );
+            
+        default: return null;
     }
 };
 
-export default function MaterialPage({ params }) {
+// --- Loading Skeleton Component ---
+const SkeletonLoader = () => (
+    <div className="animate-pulse">
+        <div className="h-10 bg-surface-dark rounded w-3/4 mb-8"></div>
+        <div className="space-y-4">
+            <div className="h-6 bg-surface-dark rounded w-full"></div>
+            <div className="h-6 bg-surface-dark rounded w-5/6"></div>
+            <div className="h-24 bg-surface-dark rounded mt-6"></div>
+            <div className="h-6 bg-surface-dark rounded w-full mt-6"></div>
+        </div>
+    </div>
+);
+
+
+export default function MaterialPage() {
+    const params = useParams();
     const { slug } = params;
     
-    // --- State Management ---
     const [material, setMaterial] = useState(null);
     const [topics, setTopics] = useState([]);
-    const [selectedTopic, setSelectedTopic] = useState(null); // الخطوة 2: حالة لتخزين الشرح المحدد
+    const [selectedTopic, setSelectedTopic] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    
+    // Extract subheadings for the smart Table of Contents
+    const subheadings = selectedTopic?.content?.filter(block => block.type === 'subheading') || [];
 
-    // Fetch all data on component load
     useEffect(() => {
+        if (!slug) return;
         const fetchData = async () => {
-            // Fetch material details
-            const matQuery = query(collection(db, 'materials'), where('slug', '==', slug));
-            const matSnapshot = await getDocs(matQuery);
-            if (!matSnapshot.empty) {
-                setMaterial(matSnapshot.docs[0].data());
-            }
+            setIsLoading(true);
+            try {
+                const matQuery = query(collection(db, 'materials'), where('slug', '==', slug));
+                const matSnapshot = await getDocs(matQuery);
+                if (!matSnapshot.empty) setMaterial(matSnapshot.docs[0].data());
 
-            // Fetch topics for the material
-            const topicsQuery = query(collection(db, 'topics'), where('materialSlug', '==', slug), orderBy('order', 'asc'));
-            const topicsSnapshot = await getDocs(topicsQuery);
-            const topicsList = topicsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setTopics(topicsList);
+                const topicsQuery = query(collection(db, 'topics'), where('materialSlug', '==', slug), orderBy('order', 'asc'));
+                const topicsSnapshot = await getDocs(topicsQuery);
+                const topicsList = topicsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setTopics(topicsList);
 
-            // Set the first topic as the selected one initially
-            if (topicsList.length > 0) {
-                setSelectedTopic(topicsList[0]);
+                if (topicsList.length > 0) setSelectedTopic(topicsList[0]);
+            } catch (error) {
+                console.error("Error fetching data: ", error)
+            } finally {
+                setIsLoading(false);
             }
-            
-            setIsLoading(false);
         };
-
         fetchData();
     }, [slug]);
 
     if (isLoading) {
-        return <p className="text-center p-10">جاري تحميل محتوى المادة...</p>;
+        // ... (Return loading skeletons for a better UX)
+        return <div className="mx-auto max-w-7xl p-6"><SkeletonLoader /></div>;
     }
 
-    if (!material) {
-        return <p className="text-center p-10">المادة غير موجودة.</p>;
-    }
+    if (!material) return <p className="text-center p-10">المادة غير موجودة.</p>;
 
     return (
         <div className="mx-auto max-w-7xl p-6 font-sans">
-            {/* ... Header (No Changes) ... */}
-            <header className="mb-8 flex items-center justify-between border-b border-border-color py-4"> <Link href="/hub" className="text-3xl font-bold text-text-primary no-underline"> Kawn<span className="text-primary-blue">Hub</span> </Link> <nav> <Link href="/hub" className="flex items-center gap-2 font-medium text-text-secondary transition-colors hover:text-text-primary"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg> <span>العودة للمنصة</span> </Link> </nav> </header>
+            
+            <header className="mb-8 flex items-center justify-between border-b border-border-color py-4">
+                <Link href="/hub" className="text-3xl font-bold text-text-primary no-underline">Kawn<span className="text-primary-blue">Hub</span></Link>
+                <nav><Link href="/hub" className="flex items-center gap-2 font-medium text-text-secondary transition-colors hover:text-text-primary"><ArrowLeftIcon /><span>العودة للمنصة</span></Link></nav>
+            </header>
 
             <div className="grid grid-cols-1 gap-12 md:grid-cols-4">
-                {/* --- Interactive Sidebar --- */}
                 <aside className="md:col-span-1">
                     <div className="sticky top-8">
                         <h2 className="mb-1 text-2xl font-bold text-text-primary">{material.title}</h2>
                         <p className="mb-4 text-sm text-text-secondary">{material.courseCode}</p>
                         <hr className="border-border-color mb-4" />
+                        
+                        {/* Smart Table of Contents */}
+                        <h3 className="font-bold mb-2">محتويات الشرح</h3>
+                        <ul className="space-y-2">
+                           {subheadings.map((sub, i) => (
+                               <li key={i}>
+                                   <a href={`#${sub.data.replace(/\s+/g, '-').toLowerCase()}`} className="text-sm block text-text-secondary hover:text-primary-blue transition-colors">
+                                       {sub.data}
+                                   </a>
+                               </li>
+                           ))}
+                        </ul>
+
+                        <hr className="border-border-color my-6" />
+
+                        <h3 className="font-bold mb-2">شروحات أخرى</h3>
                         <ul className="space-y-3">
                             {topics.map((topic) => (
                                 <li key={topic.id}>
-                                    {/* الخطوة 3: الزر يغير الشرح المحدد */}
-                                    <button 
-                                        onClick={() => setSelectedTopic(topic)}
-                                        className={`block w-full text-right rounded-md p-2 transition-colors ${selectedTopic?.id === topic.id ? 'bg-primary-blue/10 text-primary-blue font-bold' : 'text-text-secondary hover:bg-surface-dark hover:text-text-primary'}`}
-                                    >
+                                    <button onClick={() => setSelectedTopic(topic)} className={`w-full text-right rounded-md p-2 transition-colors text-sm ${selectedTopic?.id === topic.id ? 'bg-primary-blue/10 text-primary-blue font-bold' : 'text-text-secondary hover:bg-surface-dark hover:text-text-primary'}`}>
                                         {topic.title}
                                     </button>
                                 </li>
@@ -100,25 +164,17 @@ export default function MaterialPage({ params }) {
                     </div>
                 </aside>
 
-                {/* --- Dynamic Main Content --- */}
                 <main className="md:col-span-3">
-                    <div className="prose prose-invert max-w-none">
-                        {/* الخطوة 4: نعرض محتوى الشرح المحدد */}
-                        {selectedTopic ? (
-                            <>
-                                <h1 className="mb-4 text-4xl font-bold text-text-primary">
-                                   {selectedTopic.title}
-                                </h1>
-                                {selectedTopic.content.map((block, index) => (
-                                    <ContentBlock key={index} block={block} />
-                                ))}
-                            </>
-                        ) : (
-                            <p className="text-lg text-text-secondary">
-                                لا توجد شروحات لهذه المادة حاليًا.
-                            </p>
-                        )}
-                    </div>
+                    {selectedTopic ? (
+                        <div>
+                             <h1 className="mb-6 text-4xl font-bold text-text-primary border-b border-border-color pb-4">
+                                {selectedTopic.title}
+                             </h1>
+                             {selectedTopic.content.map((block, index) => (
+                                <BlockRenderer key={index} block={block} />
+                             ))}
+                        </div>
+                    ) : ( <p className="text-lg text-text-secondary">لا توجد شروحات لهذه المادة حاليًا.</p> )}
                 </main>
             </div>
         </div>
