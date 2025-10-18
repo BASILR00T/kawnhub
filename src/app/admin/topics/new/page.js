@@ -8,19 +8,19 @@ import { collection, getDocs, addDoc, query, orderBy, writeBatch, doc } from 'fi
 import toast, { Toaster } from 'react-hot-toast';
 import Select from 'react-select/creatable';
 
-// --- (BlockPreview and Icon components remain the same) ---
+// --- (BlockPreview component remains the same) ---
 const BlockPreview = ({ block }) => { switch (block.type) { case 'subheading': return <h2 className="text-2xl font-bold mt-6 mb-3 border-b border-border-color pb-2">{block.data || "..."}</h2>; case 'paragraph': return <p className="text-base text-text-secondary my-4 leading-relaxed">{block.data.en || "..."}</p>; case 'ciscoTerminal': return <pre className="my-4 text-sm bg-black/80 rounded-lg border border-border-color p-4 overflow-x-auto"><code className="text-green-400">{block.data || ''}</code></pre>; case 'note': return <div className="my-4 p-4 border-r-4 border-red-500 bg-red-500/10 text-red-300 rounded-r-lg text-sm">{block.data.en || "..."}</div>; case 'orderedList': return <ol className="list-decimal list-inside space-y-2 my-4 text-text-secondary text-base pl-4">{block.data.map((item, i) => <li key={i}>{item || `عنصر ${i+1}`}</li>)}</ol>; case 'videoEmbed': if (!block.data.url) return null; return (<div className="my-6"><div className="aspect-w-16 aspect-h-9"><iframe src={block.data.url} title={block.data.caption} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full rounded-lg"></iframe></div>{block.data.caption && <p className="text-center text-xs text-text-secondary mt-2">{block.data.caption}</p>}</div>); default: return null; }};
 
-export default function NewTopicPage(){
+export default function NewTopicPage() {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [title, setTitle] = useState('');
     const [materialSlug, setMaterialSlug] = useState('');
     const [order, setOrder] = useState(0);
     const [content, setContent] = useState([]);
-    const [selectedTags, setSelectedTags] = useState([]); //  موجود الآن
+    const [selectedTags, setSelectedTags] = useState([]);
     const [allMaterials, setAllMaterials] = useState([]);
-    const [allTags, setAllTags] = useState([]); // موجود الآن
+    const [allTags, setAllTags] = useState([]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -122,3 +122,4 @@ export default function NewTopicPage(){
         </div>
     );
 }
+

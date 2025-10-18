@@ -21,7 +21,6 @@ function useAutosave(data, onSave, delay = 3000) {
             isInitialMount.current = false;
             return;
         }
-        // Don't trigger save if data is not fully loaded
         if (!data || !data.title) return;
 
         setStatus('unsaved');
@@ -44,7 +43,6 @@ export default function EditTopicPage({ params }) {
     const topicId = params.id;
     const [isLoading, setIsLoading] = useState(true);
     
-    // Single state object for all topic data
     const [topicData, setTopicData] = useState({
         title: '',
         materialSlug: '',
@@ -60,7 +58,6 @@ export default function EditTopicPage({ params }) {
     const handleAutoSave = useCallback(async (dataToSave) => {
         if (!topicId) return;
         try {
-            // Logic for creating new tags
             const tagSlugs = [];
             const newTagsToCreate = [];
             for (const tag of selectedTags) {
@@ -95,13 +92,43 @@ export default function EditTopicPage({ params }) {
     useEffect(() => {
         if (!topicId) return;
         const fetchData = async () => {
-            // ... (The complete fetch data logic remains the same)
-            try { const materialsQuery = query(collection(db, 'materials'), orderBy('order', 'asc')); const tagsQuery = query(collection(db, 'tags'), orderBy('name', 'asc')); const [materialsSnapshot, tagsSnapshot] = await Promise.all([ getDocs(materialsQuery), getDocs(tagsQuery) ]); const materialsList = materialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); const tagsList = tagsSnapshot.docs.map(doc => ({ value: doc.data().slug, label: doc.data().name })); setAllMaterials(materialsList); setAllTags(tagsList); const docRef = doc(db, 'topics', topicId); const docSnap = await getDoc(docRef); if (docSnap.exists()) { const data = docSnap.data(); setTopicData(data); if (data.tags) { const currentTags = data.tags.map(slug => tagsList.find(t => t.value === slug)).filter(Boolean); setSelectedTags(currentTags); } } else { toast.error("الشرح غير موجود!"); router.push('/admin/topics'); } } catch (error) { toast.error("فشل في جلب البيانات."); } finally { setIsLoading(false); }
+            try {
+                const materialsQuery = query(collection(db, 'materials'), orderBy('order', 'asc'));
+                const tagsQuery = query(collection(db, 'tags'), orderBy('name', 'asc'));
+                
+                const [materialsSnapshot, tagsSnapshot] = await Promise.all([
+                    getDocs(materialsQuery),
+                    getDocs(tagsQuery)
+                ]);
+
+                const materialsList = materialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const tagsList = tagsSnapshot.docs.map(doc => ({ value: doc.data().slug, label: doc.data().name }));
+                setAllMaterials(materialsList);
+                setAllTags(tagsList);
+
+                const docRef = doc(db, 'topics', topicId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setTopicData(data);
+                    if (data.tags) {
+                        const currentTags = data.tags.map(slug => tagsList.find(t => t.value === slug)).filter(Boolean);
+                        setSelectedTags(currentTags);
+                    }
+                } else {
+                    toast.error("الشرح غير موجود!");
+                    router.push('/admin/topics');
+                }
+            } catch (error) {
+                toast.error("فشل في جلب البيانات.");
+            } finally {
+                setIsLoading(false);
+            }
         };
         fetchData();
     }, [topicId, router]);
     
-    // --- (All block management functions now update the single topicData state) ---
     const handleFieldChange = (field, value) => { setTopicData(prev => ({ ...prev, [field]: value })); };
     const setContent = (newContent) => { setTopicData(prev => ({ ...prev, content: newContent })); };
     const addContentBlock = (type) => { let newBlock; switch (type) { case 'subheading': newBlock = { type: 'subheading', data: '' }; break; case 'paragraph': newBlock = { type: 'paragraph', data: { en: '', ar: '' } }; break; case 'ciscoTerminal': newBlock = { type: 'ciscoTerminal', data: '' }; break; case 'note': newBlock = { type: 'note', data: { en: '', ar: '' } }; break; case 'orderedList': newBlock = { type: 'orderedList', data: [''] }; break; case 'videoEmbed': newBlock = { type: 'videoEmbed', data: { url: '', caption: '' } }; break; default: return; } setContent([...(topicData.content || []), newBlock]); };
