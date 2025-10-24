@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-
+import { getAuth } from "firebase/auth"; 
 // Your web app's Firebase configuration using environment variables
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -21,5 +21,6 @@ if (!getApps().length) {
 
 // Initialize Cloud Firestore and get a reference to the service
 const db = getFirestore(app);
+const auth = getAuth(app); 
 
-export { app, db };
+export { app, db, auth }; 
