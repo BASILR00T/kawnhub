@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-//  الخطوة 1: نستورد 'serverTimestamp'
 import { collection, getDocs, addDoc, query, orderBy, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
 import toast, { Toaster } from 'react-hot-toast';
 import Select from 'react-select/creatable';
@@ -15,16 +14,16 @@ import { CSS } from '@dnd-kit/utilities';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-// --- (BlockPreview component remains the same) ---
+// --- (BlockPreview component - same as your correct version) ---
 const BlockPreview = ({ block }) => { switch (block.type) { case 'subheading': return <h2 className="text-2xl font-bold mt-6 mb-3 border-b border-border-color pb-2">{block.data || "..."}</h2>; case 'paragraph': return <p className="text-base text-text-secondary my-4 leading-relaxed" dangerouslySetInnerHTML={{ __html: block.data.en || "..." }} />; case 'ciscoTerminal': return ( <div className="my-4 text-sm text-left" dir="ltr"> <SyntaxHighlighter language="cisco" style={vscDarkPlus} customStyle={{ background: '#0D1117', border: '1px solid var(--border-color)', borderRadius: '0.5rem', margin: 0, padding: '1rem' }} codeTagProps={{ style: { fontFamily: '"Fira Code", monospace' } }} wrapLines={true} wrapLongLines={true}> {block.data || ''} </SyntaxHighlighter> </div> ); case 'note': return <div className="my-4 p-4 border-r-4 border-red-500 bg-red-500/10 text-red-300 rounded-r-lg text-sm" dangerouslySetInnerHTML={{ __html: block.data.en || "..." }} />; case 'orderedList': return <ol className="list-decimal list-inside space-y-2 my-4 text-text-secondary text-base pl-4">{block.data.map((item, i) => <li key={i} dangerouslySetInnerHTML={{ __html: item || `عنصر ${i+1}`}} />)}</ol>; case 'videoEmbed': if (!block.data.url) return <div className="my-6 text-center text-text-secondary">[Video Preview]</div>; return (<div className="my-6"><div className="aspect-w-16 aspect-h-9"><iframe src={block.data.url} title={block.data.caption} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full rounded-lg"></iframe></div>{block.data.caption && <p className="text-center text-xs text-text-secondary mt-2">{block.data.caption}</p>}</div>); default: return null; }};
 
-// --- (getYoutubeEmbedUrl function remains the same) ---
+// --- (YouTube URL Helper - same as your correct version) ---
 function getYoutubeEmbedUrl(url) { if (!url) return ''; if (url.includes('youtube.com/embed/')) return url; const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/; const match = url.match(regExp); if (match && match[2].length === 11) return `https://www.youtube.com/embed/${match[2]}`; else return url; }
 
-// --- (BlockEditor component remains the same) ---
+// --- (BlockEditor component - same as your correct version) ---
 const BlockEditor = ({ block, onContentChange, onRemove, addListItem, removeListItem, onListChange }) => { const handleDataChange = (field, value) => { onContentChange({ ...block.data, [field]: value }); }; const handleVideoUrlBlur = (e) => { const cleanUrl = getYoutubeEmbedUrl(e.target.value); handleDataChange('url', cleanUrl); }; return ( <div className="p-4 border border-border-color rounded-md bg-background-dark relative pt-10"> <div className="absolute top-3 left-3 flex gap-2"> <button type="button" onClick={onRemove} className="text-red-500 text-xl hover:scale-125 transition-transform" title="حذف البلوك">&times;</button> </div> {block.type === 'subheading' && <input type="text" value={block.data} onChange={(e) => onContentChange(e.target.value)} placeholder="عنوان فرعي..." className="w-full p-2 font-bold text-lg bg-transparent border-b-2 border-border-color focus:border-primary-blue focus:outline-none" />} {block.type === 'paragraph' && <div className="space-y-2"><textarea value={block.data.en} onChange={(e) => handleDataChange('en', e.target.value)} placeholder="النص بالإنجليزية..." rows="3" className="w-full rounded border border-border-color bg-surface-dark p-2" /><textarea value={block.data.ar} onChange={(e) => handleDataChange('ar', e.target.value)} placeholder="النص بالعربية..." rows="3" className="w-full rounded border border-border-color bg-surface-dark p-2" /></div>} {block.type === 'ciscoTerminal' && <textarea value={block.data} onChange={(e) => onContentChange(e.target.value)} placeholder="Switch> enable..." rows="5" className="w-full rounded border border-border-color bg-black text-green-400 p-2 font-mono" />} {block.type === 'note' && <div className="space-y-2"><textarea value={block.data.en} onChange={(e) => handleDataChange('en', e.target.value)} placeholder="ملاحظة إنجليزية..." rows="2" className="w-full rounded border border-red-500/50 bg-red-500/10 p-2 text-red-300" /><textarea value={block.data.ar} onChange={(e) => handleDataChange('ar', e.target.value)} placeholder="ملاحظة عربية..." rows="2" className="w-full rounded border border-red-500/50 bg-red-500/10 p-2 text-red-300" /></div>} {block.type === 'orderedList' && <div className="space-y-2">{block.data.map((item, subIndex) => (<div key={subIndex} className="flex gap-2 items-center"><span className="text-text-secondary">{subIndex + 1}.</span><input type="text" value={item} onChange={(e) => onListChange(subIndex, e.target.value)} className="flex-1 rounded border border-border-color bg-surface-dark p-2" /><button type="button" onClick={() => removeListItem(subIndex)} className="text-red-500 hover:scale-125 transition-transform">&times;</button></div>))}<button type="button" onClick={addListItem} className="text-xs bg-primary-blue/20 text-primary-blue px-3 py-1 rounded-full mt-2">+ إضافة عنصر</button></div>} {block.type === 'videoEmbed' && <div className="space-y-2"><input type="url" defaultValue={block.data.url} onBlur={handleVideoUrlBlur} placeholder="https://www.youtube.com/watch?v=... (سيتم تحويله تلقائيًا)" className="w-full rounded border border-border-color bg-surface-dark p-2" /><input type="text" value={block.data.caption} onChange={(e) => handleDataChange('caption', e.target.value)} placeholder="عنوان الفيديو (اختياري)" className="w-full rounded border border-border-color bg-surface-dark p-2" /></div>} </div> ); };
 
-// --- (SortableBlock component remains the same) ---
+// --- (SortableBlock component - same as your correct version) ---
 const SortableBlock = (props) => { const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props.block.id }); const style = { transform: CSS.Transform.toString(transform), transition }; return ( <div ref={setNodeRef} style={style} className="relative group"> <button type="button" {...attributes} {...listeners} className="absolute top-3 right-3 cursor-grab p-2 opacity-20 group-hover:opacity-100 transition-opacity z-10" title="اسحب للترتيب"> <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm10-5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM13 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg> </button> <BlockEditor {...props} /> </div> ); };
 
 export default function NewTopicPage() {
@@ -78,14 +77,16 @@ export default function NewTopicPage() {
                 await batch.commit();
             }
             const contentToSave = content.map(({ id, ...rest }) => rest);
-            //  التحديث هنا: نضيف 'createdAt'
+            //  التحديث هنا: نضيف 'createdAt' و 'updatedAt'
+            const timestamp = serverTimestamp();
             const newTopic = { 
                 title, 
                 materialSlug, 
                 order: Number(order), 
                 content: contentToSave, 
                 tags: tagSlugs,
-                createdAt: serverTimestamp() //  <--  الإضافة الجديدة
+                createdAt: timestamp,
+                updatedAt: timestamp //  <--  الإضافة الجديدة لتوحيد البيانات
             };
             await addDoc(collection(db, 'topics'), newTopic);
             toast.success('تم حفظ الشرح بنجاح!', { id: toastId });
