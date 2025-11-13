@@ -1,20 +1,23 @@
-import { Tajawal } from "next/font/google";
-import "./globals.css"; // This line is CRITICAL
+import './globals.css';
+import { AuthProvider } from '@/context/AuthContext'; // استيراد ملف السياق الجديد
+import { Cairo } from 'next/font/google';
 
-const tajawalFont = Tajawal({
-  subsets: ["arabic"],
-  weight: ["400", "500", "700"],
-});
+const cairo = Cairo({ subsets: ['arabic'] });
 
 export const metadata = {
-  title: "KawnHub | مركزك للمعرفة التقنية",
-  description: "مرجعك السريع والمباشر لكل الأوامر، المفاهيم، والشروحات العملية.",
+  title: 'KawnHub v2.0',
+  description: 'مرجعك التقني الأول لطلاب الكلية الصناعية',
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="ar" dir="rtl">
-      <body className={tajawalFont.className}>{children}</body>
+      <body className={`${cairo.className} bg-background-dark text-text-primary`}>
+        {/* تغليف التطبيق بالكامل بالمزود */}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }

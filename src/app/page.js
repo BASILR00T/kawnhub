@@ -1,30 +1,51 @@
 import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import LandingPageClient from '@/components/LandingPageClient'; // نستورد المكون الجديد
+import { doc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import LandingPageClient from '@/components/LandingPageClient';
 
-// --- دالة جلب العدّاد (تعمل في الخادم) ---
+// --- 1. دالة جلب العدّاد ---
 async function getVisitCount() {
     try {
         const visitDoc = await getDoc(doc(db, 'stats', 'visits'));
-        if (visitDoc.exists()) {
-            return visitDoc.data().count;
-        }
-        return 0; // إذا لم يكن المستند موجودًا
+        // نتأكد من وجود البيانات وإلا نعيد 0
+        return visitDoc.exists() ? visitDoc.data().count : 0;
     } catch (error) {
         console.error("Error fetching visit count: ", error);
-        return 0; // نرجع صفرًا في حالة حدوث خطأ
+        return 0;
     }
 }
 
-// --- صفحة الهبوط (مكون خادم) ---
-export default async function LandingPage() {
-    
-    // 1. نجلب العدّاد من الخادم
-    const visitsCount = await getVisitCount();
-
-    // 2. نمرر العدّاد كـ prop إلى مكون العميل
-    return (
-        <LandingPageClient visitsCount={visitsCount} />
-    );
+// --- 2. دالة جلب المواد المميزة (أول 3 مواد فقط) ---
+async function getFeaturedMaterials() {
+    try {
+        const materialsRef = collection(db, 'materials');
+        // ترتيب حسب order وجلب أول 3 فقط
+        const q = query(materialsRef, orderBy('order', 'asc'), limit(3));
+        const snapshot = await getDocs(q);
+        
+        // تحويل البيانات لنسق JSON بسيط
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error("Error fetching materials: ", error);
+        return [];
+    }
 }
 
+// --- مكون الخادم الرئيسي ---
+export default async function LandingPage() {
+    // جلب البيانات بشكل متوازي لسرعة التحميل
+    const [visitsCount, featuredMaterials] = await Promise.all([
+        getVisitCount(),
+        getFeaturedMaterials()
+    ]);
+
+    // تمرير البيانات لمكون العميل
+    return (
+        <LandingPageClient 
+            visitsCount={visitsCount} 
+            featuredMaterials={featuredMaterials} 
+        />
+    );
+}

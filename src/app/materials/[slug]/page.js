@@ -1,5 +1,5 @@
 'use client'; 
-
+import DOMPurify from 'isomorphic-dompurify';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -19,8 +19,23 @@ const BlockRenderer = ({ block }) => {
         navigator.clipboard.writeText(code);
         toast.success('تم نسخ الأمر بنجاح!');
     };
-
+    const sanitize = (html) => DOMPurify.sanitize(html);
     switch (block.type) {
+        case 'paragraph':
+            return (
+               <p 
+                 className="..." 
+                 // ✅ الآن النص آمن حتى لو احتوى على <script>
+                 dangerouslySetInnerHTML={{ __html: sanitize(block.data.en) }} 
+               />
+            );
+        case 'note':
+             return (
+                <div 
+                  className="..." 
+                  dangerouslySetInnerHTML={{ __html: sanitize(block.data.en) }} 
+                />
+             );
         case 'subheading':
             const id = block.data.replace(/\s+/g, '-').toLowerCase();
             return <h2 id={id} className="text-2xl font-bold mt-10 mb-4 border-b border-border-color pb-2">{block.data}</h2>;
