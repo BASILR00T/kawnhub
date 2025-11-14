@@ -1,40 +1,56 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useAuth } from '@/context/AuthContext'; // استيراد الكونتكست
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { Mail, Bug, Lightbulb, Inbox, Calendar, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function MessagesClient() {
+  const { user } = useAuth(); // 1. جلب المستخدم
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 2. لا تقم بالجلب إلا إذا كان المستخدم موجوداً (مسجل دخول)
+    if (!user) return;
+
     const fetchMessages = async () => {
       try {
+        // جلب البيانات
         const q = query(collection(db, 'messages'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
         
+        // 3. تعريف المتغير data (هذا ما كان ناقصاً)
         const data = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate().toLocaleDateString('ar-EG', {
+          createdAt: doc.data().createdAt?.toDate ? 
+            doc.data().createdAt.toDate().toLocaleDateString('ar-EG', {
               weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-          }) || 'تاريخ غير معروف'
+            }) : 'تاريخ غير معروف'
         }));
         
         setMessages(data);
       } catch (error) {
         console.error("Error fetching messages:", error);
-        toast.error("فشل جلب الرسائل: تأكد من صلاحياتك");
+        // عرض رسالة خطأ توضيحية
+        if (error.code === 'permission-denied') {
+            toast.error("ليس لديك صلاحية لعرض الرسائل.");
+        } else if (error.code === 'failed-precondition') {
+            toast.error("يجب إنشاء فهرس (Index) في Firebase.");
+            console.log("Check console for Index Link");
+        } else {
+            toast.error("فشل جلب الرسائل.");
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchMessages();
-  }, []);
+  }, [user]); // إعادة التشغيل عند تغيير حالة المستخدم
 
   const getTypeStyle = (type) => {
     switch(type) {
@@ -93,10 +109,7 @@ export default function MessagesClient() {
                     </div>
                   </div>
 
-                  <a 
-                    href={`mailto:${msg.email}?subject=رد على رسالتك في KawnHub`} 
-                    className="hidden md:flex items-center gap-2 text-sm font-bold text-primary-blue bg-primary-blue/10 px-4 py-2 rounded-lg hover:bg-primary-blue hover:text-white transition-all"
-                  >
+                  <a href={`mailto:${msg.email}?subject=رد على رسالتك في KawnHub`} className="hidden md:flex items-center gap-2 text-sm font-bold text-primary-blue bg-primary-blue/10 px-4 py-2 rounded-lg hover:bg-primary-blue hover:text-white transition-all">
                     <Mail size={16} /> الرد الآن
                   </a>
                 </div>

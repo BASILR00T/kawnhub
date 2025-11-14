@@ -1,21 +1,22 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { saveUser, deleteUser } from '@/app/actions/users';
 import { useAuth } from '@/context/AuthContext';
-import { db } from '@/lib/firebase'; // نحتاج db هنا للجلب
+import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { Trash2, UserPlus, Shield, ShieldAlert, GraduationCap, Loader2 } from 'lucide-react';
 
 export default function UsersClient() {
   const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState([]); // حالة لتخزين المستخدمين
-  const [loading, setLoading] = useState(true); // حالة التحميل
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- دالة جلب المستخدمين ---
+  // دالة جلب المستخدمين في المتصفح (باستخدام صلاحياتك)
   const fetchUsers = useCallback(async () => {
+    setLoading(true);
     try {
       const snapshot = await getDocs(collection(db, 'admins'));
       const data = snapshot.docs.map(doc => ({
@@ -31,12 +32,10 @@ export default function UsersClient() {
     }
   }, []);
 
-  // جلب البيانات عند فتح الصفحة
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
-  // --- دالة الإضافة ---
   const handleAdd = async (formData) => {
     setIsSubmitting(true);
     const result = await saveUser(formData);
@@ -45,22 +44,19 @@ export default function UsersClient() {
     if (result.success) {
       toast.success(result.message);
       document.getElementById('userForm').reset();
-      fetchUsers(); // تحديث القائمة فوراً
+      fetchUsers();
     } else {
       toast.error(result.message);
     }
   };
 
-  // --- دالة الحذف ---
   const handleDelete = async (targetEmail) => {
     if (currentUser?.email === targetEmail) {
         toast.error("عذراً، لا يمكنك حذف حسابك الحالي!");
         return;
     }
-
     if(!confirm('هل أنت متأكد من حذف هذا المستخدم؟ سيفقد صلاحيات الدخول.')) return;
     
-    // تحديث "متفائل" (Optimistic Update) للواجهة لتبدو أسرع
     const oldUsers = [...users];
     setUsers(users.filter(u => u.email !== targetEmail));
 
@@ -68,7 +64,7 @@ export default function UsersClient() {
     if (result.success) {
         toast.success(result.message);
     } else {
-        setUsers(oldUsers); // تراجع في حال الفشل
+        setUsers(oldUsers);
         toast.error(result.message);
     }
   };
@@ -91,8 +87,6 @@ export default function UsersClient() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      
-      {/* نموذج الإضافة */}
       <div className="lg:col-span-1">
         <div className="bg-surface-dark border border-border-color rounded-xl p-6 sticky top-6">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-text-primary">
@@ -101,39 +95,22 @@ export default function UsersClient() {
           <form id="userForm" action={handleAdd} className="space-y-4">
             <div>
               <label className="block text-sm text-text-secondary mb-1">البريد الإلكتروني</label>
-              <input 
-                name="email" 
-                type="email" 
-                required 
-                placeholder="user@gmail.com"
-                className="w-full rounded-lg bg-background-dark border border-border-color p-3 text-text-primary focus:border-primary-blue outline-none"
-              />
+              <input name="email" type="email" required placeholder="user@gmail.com" className="w-full rounded-lg bg-background-dark border border-border-color p-3 text-text-primary focus:border-primary-blue outline-none" />
             </div>
-            
             <div>
               <label className="block text-sm text-text-secondary mb-1">الصلاحية</label>
-              <select 
-                name="role" 
-                className="w-full rounded-lg bg-background-dark border border-border-color p-3 text-text-primary focus:border-primary-blue outline-none"
-              >
+              <select name="role" className="w-full rounded-lg bg-background-dark border border-border-color p-3 text-text-primary focus:border-primary-blue outline-none">
                 <option value="editor">مشرف محتوى (Editor)</option>
                 <option value="admin">مدير كامل (Admin)</option>
                 <option value="student">طالب (Student)</option>
               </select>
             </div>
-
-            <button 
-              type="submit" 
-              disabled={isSubmitting}
-              className="w-full bg-primary-blue text-white font-bold py-3 rounded-lg hover:bg-primary-blue/90 transition disabled:opacity-50"
-            >
+            <button type="submit" disabled={isSubmitting} className="w-full bg-primary-blue text-white font-bold py-3 rounded-lg hover:bg-primary-blue/90 transition disabled:opacity-50">
               {isSubmitting ? 'جاري الحفظ...' : 'حفظ الصلاحيات'}
             </button>
           </form>
         </div>
       </div>
-
-      {/* جدول المستخدمين */}
       <div className="lg:col-span-2">
         <div className="bg-surface-dark border border-border-color rounded-xl overflow-hidden">
           <table className="w-full text-right">
@@ -155,20 +132,14 @@ export default function UsersClient() {
                     </div>
                   </td>
                   <td className="p-4">
-                    <button 
-                      onClick={() => handleDelete(user.email)}
-                      className="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-500/10 transition"
-                      title="حذف الصلاحية"
-                    >
+                    <button onClick={() => handleDelete(user.email)} className="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-500/10 transition" title="حذف الصلاحية">
                       <Trash2 size={18} />
                     </button>
                   </td>
                 </tr>
               ))}
               {users.length === 0 && (
-                <tr>
-                  <td colSpan="3" className="p-8 text-center text-text-secondary">لا يوجد مستخدمين مضافين بعد.</td>
-                </tr>
+                <tr><td colSpan="3" className="p-8 text-center text-text-secondary">لا يوجد مستخدمين مضافين بعد.</td></tr>
               )}
             </tbody>
           </table>

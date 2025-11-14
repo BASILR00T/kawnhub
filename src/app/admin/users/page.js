@@ -10,8 +10,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-text-primary">إدارة المستخدمين والصلاحيات</h1>
       </div>
-      
-      {/* استدعاء المكون التفاعلي فقط */}
+      {/* نستدعي مكون العميل الذي سيجلب البيانات بصلاحياتك */}
       <UsersClient />
     </div>
   );

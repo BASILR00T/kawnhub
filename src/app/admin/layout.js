@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect } from 'react';
-// ✅ أضفنا أيقونة Inbox هنا
 import { LayoutDashboard, Folder, Hash, FileText, Users, LogOut, Loader2, Globe, Inbox } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -34,7 +33,6 @@ export default function AdminLayout({ children }) {
     { name: 'المواد', href: '/admin/materials', icon: Folder },
     { name: 'الشروحات', href: '/admin/topics', icon: FileText },
     { name: 'الوسوم', href: '/admin/tags', icon: Hash },
-    // ✅ تمت إضافة رابط الرسائل هنا
     { name: 'الرسائل', href: '/admin/messages', icon: Inbox }, 
   ];
 
@@ -42,20 +40,13 @@ export default function AdminLayout({ children }) {
     <div className="flex min-h-screen bg-background-dark text-text-primary">
       <Toaster position="bottom-left" />
 
-      {/* Sidebar */}
       <aside className="fixed right-0 top-0 h-full w-64 border-l border-border-color bg-surface-dark p-4 hidden md:flex flex-col">
-        
         <div className="mb-6 flex items-center gap-2 px-2">
           <span className="text-2xl font-bold">Kawn<span className="text-primary-blue">Admin</span></span>
         </div>
 
         <nav className="flex-1 space-y-1">
-          
-          <Link
-            href="/"
-            target="_blank" 
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-text-secondary transition-all hover:bg-primary-blue hover:text-white mb-2"
-          >
+          <Link href="/" target="_blank" className="flex items-center gap-3 rounded-lg px-3 py-2 text-text-secondary transition-all hover:bg-primary-blue hover:text-white mb-2">
             <Globe size={20} />
             <span className="font-medium">عرض الموقع</span>
           </Link>
@@ -65,15 +56,7 @@ export default function AdminLayout({ children }) {
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
-                  isActive 
-                    ? 'bg-primary-blue text-white' 
-                    : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
-                }`}
-              >
+              <Link key={item.href} href={item.href} className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${isActive ? 'bg-primary-blue text-white' : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'}`}>
                 <item.icon size={20} />
                 <span className="font-medium">{item.name}</span>
               </Link>
@@ -83,14 +66,7 @@ export default function AdminLayout({ children }) {
           {user.role === 'admin' && (
             <>
               <div className="my-2 h-px bg-border-color mx-2 opacity-50"></div>
-              <Link
-                href="/admin/users"
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
-                  pathname === '/admin/users'
-                    ? 'bg-primary-purple/20 text-primary-purple'
-                    : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
-                }`}
-              >
+              <Link href="/admin/users" className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${pathname === '/admin/users' ? 'bg-primary-purple/20 text-primary-purple' : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'}`}>
                 <Users size={20} />
                 <span className="font-medium">المستخدمين</span>
               </Link>
@@ -104,10 +80,7 @@ export default function AdminLayout({ children }) {
              <br/>
              <span className="truncate block" title={user.email}>{user.email}</span>
           </div>
-          <button
-            onClick={() => logout()}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-red-400 transition-all hover:bg-red-500/10"
-          >
+          <button onClick={() => logout()} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-red-400 transition-all hover:bg-red-500/10">
             <LogOut size={20} />
             <span className="font-medium">تسجيل خروج</span>
           </button>
