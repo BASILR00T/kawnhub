@@ -5,20 +5,37 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect } from 'react';
 import { LayoutDashboard, Folder, Hash, FileText, Users, LogOut, Loader2, Globe, Inbox } from 'lucide-react';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 
 export default function AdminLayout({ children }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
+  // --- 🔥 الجدار الناري المطور 🔥 ---
   useEffect(() => {
-    if (!loading && !user) {
+    // 1. ننتظر حتى ينتهي التحميل
+    if (loading) return;
+
+    // 2. إذا لم يكن مسجلاً أصلاً -> لصفحة الدخول
+    if (!user) {
       router.push('/login');
+      return;
+    }
+
+    // 3. (الشرط الجديد) إذا كان مسجلاً لكنه ليس أدمن أو مشرف -> طرد للمنصة
+    if (user.role !== 'admin' && user.role !== 'editor') {
+      toast.error('عذراً، هذه المنطقة للمشرفين فقط!');
+      router.push('/hub');
     }
   }, [user, loading, router]);
 
-  if (loading) {
+  // --- شاشة التحميل والحماية ---
+  // نعرض شاشة التحميل إذا:
+  // 1. جاري التحقق (loading)
+  // 2. المستخدم غير موجود
+  // 3. المستخدم موجود لكنه ليس أدمن (كي لا يرى المحتوى ولو لثانية قبل الطرد)
+  if (loading || !user || (user.role !== 'admin' && user.role !== 'editor')) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background-dark text-primary-blue">
         <Loader2 className="animate-spin" size={48} />
@@ -26,8 +43,7 @@ export default function AdminLayout({ children }) {
     );
   }
 
-  if (!user) return null;
-
+  // --- القائمة والمحتوى (يظهر فقط للأدمن/المشرف) ---
   const navItems = [
     { name: 'لوحة التحكم', href: '/admin', icon: LayoutDashboard },
     { name: 'المواد', href: '/admin/materials', icon: Folder },
@@ -40,6 +56,7 @@ export default function AdminLayout({ children }) {
     <div className="flex min-h-screen bg-background-dark text-text-primary">
       <Toaster position="bottom-left" />
 
+      {/* Sidebar */}
       <aside className="fixed right-0 top-0 h-full w-64 border-l border-border-color bg-surface-dark p-4 hidden md:flex flex-col">
         <div className="mb-6 flex items-center gap-2 px-2">
           <span className="text-2xl font-bold">Kawn<span className="text-primary-blue">Admin</span></span>
@@ -87,6 +104,7 @@ export default function AdminLayout({ children }) {
         </div>
       </aside>
 
+      {/* Content */}
       <main className="flex-1 p-8 md:mr-64">
         {children}
       </main>

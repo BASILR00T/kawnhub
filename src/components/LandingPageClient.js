@@ -1,10 +1,13 @@
 'use client'; 
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // ضروري لصورة البروفايل
+import Image from 'next/image';
+import { useAuth } from '@/context/AuthContext';
+// ✅ أضفنا LayoutDashboard
+import { LogIn, LogOut, User, ChevronDown, HelpCircle, LayoutDashboard } from 'lucide-react';
 
-// --- Icon Components ---
+// --- (Icon Components كما هي) ---
 const FolderIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> );
 const ArrowIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg> );
 const SearchIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> );
@@ -15,9 +18,20 @@ const LinkedinIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="24" 
 const EyeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/></svg>);
 
 export default function LandingPageClient({ visitsCount, featuredMaterials }) {
+  const { user, logout } = useAuth();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const dropdownRef = useRef(null);
   
   useEffect(() => {
     fetch('/api/visits', { method: 'POST' }).catch(error => console.error("Failed to count visit: ", error));
+    
+    const handleClickOutside = (event) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+            setIsUserMenuOpen(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []); 
 
   return (
@@ -32,12 +46,72 @@ export default function LandingPageClient({ visitsCount, featuredMaterials }) {
                     <span>{visitsCount?.toLocaleString('en-US')}</span>
                 </div>
                 <span className="h-4 w-px bg-border-color"></span>
+                
                 <Link href="/hub" className="text-text-secondary transition-colors hover:text-text-primary font-medium">المنصة</Link> 
                 <Link href="/lab" className="hidden sm:block text-text-secondary transition-colors hover:text-text-primary font-medium">المختبر 🧪</Link> 
+                <Link href="/support" className="text-text-secondary transition-colors hover:text-primary-blue" title="المساعدة"><HelpCircle size={20}/></Link>
+                
+                {/* ✅ زر الأدمن (يظهر فقط للمشرفين) */}
+                {(user?.role === 'admin' || user?.role === 'editor') && (
+                    <Link href="/admin" className="text-primary-purple hover:text-white transition-colors flex items-center gap-1 text-sm font-bold bg-primary-purple/10 px-3 py-1.5 rounded-lg border border-primary-purple/20" title="لوحة التحكم">
+                        <LayoutDashboard size={16} />
+                    </Link>
+                )}
+
+                {user ? (
+                    <div className="relative ml-2" ref={dropdownRef}>
+                        <button 
+                            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                            className="flex items-center gap-2 focus:outline-none group"
+                        >
+                            {user.photoURL ? (
+                                <Image src={user.photoURL} alt="User" width={36} height={36} className="rounded-full border border-primary-blue/50 group-hover:border-primary-blue transition-colors" />
+                            ) : (
+                                <div className="w-9 h-9 rounded-full bg-primary-blue/20 flex items-center justify-center text-primary-blue font-bold border border-primary-blue/50 group-hover:border-primary-blue transition-colors">
+                                    {user.email?.[0].toUpperCase()}
+                                </div>
+                            )}
+                            <ChevronDown size={16} className={`text-text-secondary transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isUserMenuOpen && (
+                            <div className="absolute left-0 mt-2 w-56 rounded-xl border border-border-color bg-surface-dark shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 origin-top-left">
+                                <div className="px-4 py-3 border-b border-border-color/50 mb-2">
+                                    <p className="text-sm font-bold text-text-primary truncate">{user.name || 'مستخدم'}</p>
+                                    <p className="text-xs text-text-secondary truncate font-mono mt-0.5">{user.email}</p>
+                                </div>
+                                
+                                {/* رابط الأدمن في القائمة أيضاً للجوال */}
+                                {(user?.role === 'admin' || user?.role === 'editor') && (
+                                    <Link href="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-primary-purple hover:bg-primary-purple/10 transition-colors mx-2 rounded-lg">
+                                        <LayoutDashboard size={16} />
+                                        <span>لوحة التحكم</span>
+                                    </Link>
+                                )}
+
+                                <Link href="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue transition-colors mx-2 rounded-lg">
+                                    <User size={16} />
+                                    <span>الملف الشخصي</span>
+                                </Link>
+                                <div className="my-2 border-t border-border-color/50 mx-4"></div>
+                                <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors mx-2 rounded-lg text-right">
+                                    <LogOut size={16} />
+                                    <span>تسجيل خروج</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <Link href="/login" className="flex items-center gap-2 rounded-lg bg-primary-blue px-4 py-2 text-sm font-bold text-white hover:bg-primary-blue/90 transition-colors ml-2">
+                        <span>دخول</span>
+                        <LogIn size={16} />
+                    </Link>
+                )}
             </nav> 
        </header> 
-       
-       {/* Hero Section (تم الإصلاح هنا لتداخل النص) */}
+
+       {/* ... (باقي الصفحة كما هي) ... */}
+       {/* Hero Section */}
        <main className="flex min-h-[60vh] items-center justify-center text-center"> 
            <div className="flex flex-col items-center max-w-4xl"> 
                <h1 className="text-4xl font-extrabold tracking-tight text-text-primary sm:text-5xl md:text-6xl lg:text-7xl">
@@ -65,7 +139,7 @@ export default function LandingPageClient({ visitsCount, featuredMaterials }) {
            </div> 
        </section>
 
-       {/* --- Featured Materials (Style: Browser Window) --- */}
+       {/* Featured Materials (Browser Style) */}
        <section className="py-24">
            <div className="text-center mb-12">
                <h2 className="text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">واجهة مصممة لك</h2>
@@ -74,29 +148,22 @@ export default function LandingPageClient({ visitsCount, featuredMaterials }) {
                </p>
            </div>
 
-           {/* Browser Window Frame */}
            <div className="relative mx-auto max-w-6xl overflow-hidden rounded-2xl border border-border-color bg-surface-dark/50 shadow-2xl shadow-black/50 backdrop-blur-sm transition-transform hover:scale-[1.01] duration-500">
-               
-               {/* Browser Toolbar */}
                <div className="flex items-center gap-4 border-b border-border-color bg-[#0d1117]/80 px-4 py-3 backdrop-blur-md">
-                    {/* Traffic Lights */}
                     <div className="flex gap-2">
                         <div className="h-3 w-3 rounded-full bg-red-500/80"></div>
                         <div className="h-3 w-3 rounded-full bg-yellow-500/80"></div>
                         <div className="h-3 w-3 rounded-full bg-green-500/80"></div>
                     </div>
-                    
-                    {/* Fake Address Bar */}
                     <div className="flex-1 flex justify-center">
                         <div className="flex w-full max-w-sm items-center justify-center gap-2 rounded-lg bg-black/40 px-4 py-1.5 text-xs font-mono text-text-secondary border border-white/5">
                             <span className="text-green-500">🔒</span>
                             <span>kawnhub.com/materials</span>
                         </div>
                     </div>
-                    <div className="w-12"></div> {/* Spacer */}
+                    <div className="w-12"></div>
                </div>
 
-               {/* Browser Content (The Grid) */}
                <div className="p-6 md:p-10 bg-[#0a0a0f]">
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                        {featuredMaterials && featuredMaterials.length > 0 ? (
@@ -158,7 +225,7 @@ export default function LandingPageClient({ visitsCount, featuredMaterials }) {
                         <BeakerIcon /> <span className="font-bold text-sm">قريبًا...</span> 
                     </div> 
                     <h2 className="text-4xl font-bold tracking-tight text-text-primary sm:text-5xl"> المختبر التفاعلي </h2> 
-                    <p className="mt-4 max-w-2xl mx-auto lg:mx-0 text-lg text-text-secondary"> التعلم بالتجربة هو الأساس. نجهز لك محاكي تفاعلي يخليك تطبق الأوامر وتشوف النتيجة قدامك مباشرة. </p> 
+                    <p className="mt-4 max-w-2xl mx-auto lg:mx-0 text-lg text-text-secondary"> التعلم بالتجربة هو الأساس. نجهز لك محاكي تفاعلي يخليك تطبق الأوامر وتشوف النتيجة قدامك مباشرة، كأنك على جهاز حقيقي. </p> 
                     <Link href="/lab" className="mt-8 inline-flex items-center gap-3 rounded-xl bg-primary-purple px-8 py-4 text-lg font-bold text-white shadow-lg shadow-primary-purple/20 transition-all duration-300 hover:bg-primary-purple/90 hover:-translate-y-1"> <span>جرّب الديمو الأولي</span> </Link> 
                 </div> 
                 <div className="rounded-xl border border-border-color bg-black/50 p-6 font-mono text-sm text-left dir-ltr shadow-2xl"> 
@@ -170,7 +237,7 @@ export default function LandingPageClient({ visitsCount, featuredMaterials }) {
             </div> 
        </section>
        
-       {/* --- Project Story Section (تمت إعادتها) --- */}
+       {/* Project Story Section */}
        <section className="py-24"> 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-center rounded-2xl border border-border-color bg-surface-dark p-12"> 
                 <div className="flex justify-center lg:col-span-1"> 
@@ -187,7 +254,7 @@ export default function LandingPageClient({ visitsCount, featuredMaterials }) {
             </div> 
        </section>
 
-{/* Footer */}
+       {/* Footer */}
        <footer className="py-8 border-t border-border-color">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-right">
                 <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8">
@@ -195,7 +262,6 @@ export default function LandingPageClient({ visitsCount, featuredMaterials }) {
                         &copy; {new Date().getFullYear()} KawnHub. جميع الحقوق محفوظة.
                     </p>
                     
-                    {/* ✅ الرابط الجديد المضاف هنا */}
                     <Link href="/support" className="text-sm font-medium text-text-secondary hover:text-primary-blue transition-colors">
                         مركز المساعدة والدعم
                     </Link>

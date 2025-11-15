@@ -1,25 +1,26 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ... إعدادات الصور السابقة ...
   images: {
     remotePatterns: [
-       // ...
-    ],
-  },
-  
-  // إضافة رؤوس الأمان
-  async headers() {
-    return [
+      // 1. السماح بصور البروفايل من جوجل
       {
-        source: '/(.*)',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' }, // منع تضمين الموقع في iFrame
-          { key: 'X-Content-Type-Options', value: 'nosniff' }, // منع تخمين نوع الملفات
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: "camera=(), microphone=(), geolocation=()" } // منع الوصول للكاميرا والموقع
-        ],
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '**',
       },
-    ];
+      // 2. السماح بصور البروفايل من مصادر جوجل الأخرى (احتياطاً)
+      {
+        protocol: 'https',
+        hostname: '*.googleusercontent.com',
+        pathname: '**',
+      },
+      // 3. (اختياري) إذا كنت تستخدم صور من Firebase Storage مستقبلاً
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        pathname: '**',
+      },
+    ],
   },
 };
 

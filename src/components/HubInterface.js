@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, Suspense, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Toaster } from 'react-hot-toast';
-// ✅ التعديل هنا: تمت إضافة HelpCircle
-import { Search, ArrowRight, Computer, HelpCircle } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import MajorSelector from '@/components/MajorSelector';
+// ✅ أضفنا LayoutDashboard
+import { Search, ArrowRight, Computer, HelpCircle, LogIn, LogOut, User, ChevronDown, Settings, LayoutDashboard } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
-// --- المكون الديناميكي للأيقونات ---
+// ... (DynamicIcon و BentoCard كما هما) ...
 const DynamicIcon = ({ name, ...props }) => {
     const IconComponent = LucideIcons[name];
     if (!IconComponent) return <Computer {...props} />;
@@ -23,23 +26,31 @@ const BentoCard = ({ children, className, href }) => {
     ); 
 };
 
-// نستقبل البيانات كـ props
 export default function HubInterface({ initialMaterials = [], initialTopics = [], initialTags = [], isPreview = false }) {
-    
+    const { user, logout } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTag, setSelectedTag] = useState(null);
+    const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+    const dropdownRef = useRef(null);
 
-    // تحديد آخر شرح تم إضافته
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsUserMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const latestTopic = initialTopics.length > 0 ? initialTopics[0] : null;
 
-    // --- دالة إعادة تعيين الفلاتر ---
     const resetFilters = () => {
         setSearchQuery('');
         setSelectedTag(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // منطق الفلترة
     const filteredMaterials = useMemo(() => {
         let items = [...initialMaterials];
         const lowerCaseQuery = searchQuery.toLowerCase();
@@ -72,35 +83,94 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
 
     return (
         <div className="mx-auto max-w-6xl p-6">
+             <MajorSelector />
              <Toaster position="bottom-center" />
              
-             <header className="mb-12 flex items-center justify-between"> 
+             <header className="mb-12 flex items-center justify-between relative z-20"> 
                 <Link href="/" className="text-3xl font-bold text-text-primary no-underline"> Kawn<span className="text-primary-blue">Hub</span> </Link> 
                 
-                <nav className="hidden items-center gap-6 md:flex"> 
-                    <button 
-                        onClick={resetFilters}
-                        disabled={isPreview}
-                        className={`text-sm font-medium transition-colors ${
-                            (!searchQuery && !selectedTag) 
-                            ? 'text-primary-blue cursor-default' 
-                            : 'text-text-secondary hover:text-text-primary cursor-pointer'
-                        }`}
-                    >
-                        جميع المواد
-                    </button>
+                <nav className="flex items-center gap-6"> 
+                    <div className="hidden md:flex items-center gap-6">
+                        <button 
+                            onClick={resetFilters}
+                            disabled={isPreview}
+                            className={`text-sm font-medium transition-colors ${(!searchQuery && !selectedTag) ? 'text-primary-blue cursor-default' : 'text-text-secondary hover:text-text-primary cursor-pointer'}`}
+                        >
+                            جميع المواد
+                        </button>
 
-                    <Link href="/lab" className="text-text-secondary hover:text-text-primary font-medium text-sm">
-                        المختبر 🧪
-                    </Link> 
+                        <Link href="/lab" className="text-text-secondary hover:text-text-primary font-medium text-sm">
+                            المختبر 🧪
+                        </Link> 
+                        
+                        {/* ✅ زر الأدمن (يظهر فقط للمشرفين) */}
+                        {(user?.role === 'admin' || user?.role === 'editor') && (
+                            <Link href="/admin" className="text-primary-purple hover:text-white transition-colors flex items-center gap-1 text-sm font-bold bg-primary-purple/10 px-3 py-1.5 rounded-lg border border-primary-purple/20">
+                                <LayoutDashboard size={16} />
+                                <span>الإدارة</span>
+                            </Link>
+                        )}
 
-                    {/* رابط المساعدة والدعم */}
-                    <Link href="/support" className="text-text-secondary hover:text-primary-blue transition-colors" title="المساعدة والدعم">
-                        <HelpCircle size={20} />
-                    </Link>
+                        <Link href="/support" className="text-text-secondary hover:text-primary-blue transition-colors" title="المساعدة والدعم">
+                            <HelpCircle size={20} />
+                        </Link>
+                    </div>
+
+                    <div className="h-6 w-px bg-border-color hidden md:block"></div>
+
+                    {/* Dropdown */}
+                    {user ? (
+                        <div className="relative" ref={dropdownRef}>
+                            <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-2 focus:outline-none group">
+                                {user.photoURL ? (
+                                    <Image src={user.photoURL} alt="User" width={36} height={36} className="rounded-full border border-primary-blue/50 group-hover:border-primary-blue transition-colors" />
+                                ) : (
+                                    <div className="w-9 h-9 rounded-full bg-primary-blue/20 flex items-center justify-center text-primary-blue font-bold border border-primary-blue/50 group-hover:border-primary-blue transition-colors">
+                                        {user.email?.[0].toUpperCase()}
+                                    </div>
+                                )}
+                                <ChevronDown size={16} className={`text-text-secondary transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isUserMenuOpen && (
+                                <div className="absolute left-0 mt-2 w-56 rounded-xl border border-border-color bg-surface-dark shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 origin-top-left">
+                                    <div className="px-4 py-3 border-b border-border-color/50 mb-2">
+                                        <p className="text-sm font-bold text-text-primary truncate">{user.name || 'مستخدم'}</p>
+                                        <p className="text-xs text-text-secondary truncate font-mono mt-0.5">{user.email}</p>
+                                    </div>
+                                    
+                                    {/* رابط الأدمن في القائمة أيضاً (للجوال) */}
+                                    {(user?.role === 'admin' || user?.role === 'editor') && (
+                                        <Link href="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-primary-purple hover:bg-primary-purple/10 transition-colors mx-2 rounded-lg">
+                                            <LayoutDashboard size={16} />
+                                            <span>لوحة التحكم</span>
+                                        </Link>
+                                    )}
+
+                                    <Link href="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue transition-colors mx-2 rounded-lg">
+                                        <User size={16} />
+                                        <span>الملف الشخصي</span>
+                                    </Link>
+
+                                    <div className="my-2 border-t border-border-color/50 mx-4"></div>
+
+                                    <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors mx-2 rounded-lg text-right">
+                                        <LogOut size={16} />
+                                        <span>تسجيل خروج</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <Link href="/login" className="flex items-center gap-2 rounded-lg bg-primary-blue px-4 py-2 text-sm font-bold text-white hover:bg-primary-blue/90 transition-colors">
+                            <span>دخول</span>
+                            <LogIn size={16} />
+                        </Link>
+                    )}
                 </nav> 
              </header>
 
+            {/* ... (باقي محتوى الصفحة كما هو) ... */}
             <main className="grid grid-cols-6 auto-rows-[220px] gap-4">
                 {/* بطاقة البحث */}
                 <div className="col-span-6 md:col-span-4 relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border-color bg-surface-dark p-6">

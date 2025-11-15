@@ -1,133 +1,73 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-//  الخطوة 1: نستورد الدالات الجديدة
-import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
-import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { LogIn, ArrowRight, Sparkles } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LoginPage() {
-    const [isLoading, setIsLoading] = useState(false);
-    //  الخطوة 2: نضيف حالات جديدة لحقول النموذج
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    
-    const router = useRouter();
-    const auth = getAuth();
-    const googleProvider = new GoogleAuthProvider();
+  const { user, loginWithGoogle, loading } = useAuth();
+  const router = useRouter();
 
-    // --- دالة التحقق من القائمة البيضاء (Whitelist Check) ---
-    const checkAdminAndRedirect = async (user) => {
-        if (user) {
-            const adminDocRef = doc(db, 'admins', user.email);
-            const adminDoc = await getDoc(adminDocRef);
+  // إذا كان مسجلاً بالفعل، وجهه لمكانه الصحيح
+  useEffect(() => {
+    if (user && !loading) {
+      if (user.isAdmin) router.push('/admin');
+      else router.push('/hub');
+    }
+  }, [user, loading, router]);
 
-            if (adminDoc.exists()) {
-                // نجح! المستخدم هو أدمن
-                router.push('/admin');
-            } else {
-                // فشل! المستخدم ليس أدمن
-                await auth.signOut();
-                alert('خطأ: هذا الحساب غير مصرح له بالدخول.');
-                setIsLoading(false);
-            }
-        }
-    };
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center p-6 relative overflow-hidden">
+      
+      {/* خلفية جمالية */}
+      <div className="absolute top-0 left-0 w-full h-full bg-background-dark z-0">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-blue/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary-purple/10 rounded-full blur-3xl"></div>
+      </div>
 
-    // ---  دالة تسجيل الدخول بالإيميل (الجديدة) ---
-    const handleEmailSignIn = async (e) => {
-        e.preventDefault(); // نمنع الفورم من إعادة تحميل الصفحة
-        setIsLoading(true);
-        try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            await checkAdminAndRedirect(userCredential.user);
-        } catch (error) {
-            console.error("Error during email sign-in: ", error);
-            alert('خطأ: كلمة المرور أو البريد الإلكتروني غير صحيح.');
-            setIsLoading(false);
-        }
-    };
+      <div className="relative z-10 w-full max-w-md text-center">
+        
+        {/* الشعار */}
+        <Link href="/" className="inline-block mb-8 text-4xl font-bold text-text-primary no-underline hover:scale-105 transition-transform">
+          Kawn<span className="text-primary-blue">Hub</span>
+        </Link>
 
-    // --- دالة تسجيل الدخول بجوجل (الموجودة سابقًا) ---
-    const handleGoogleSignIn = async () => {
-        setIsLoading(true);
-        try {
-            const result = await signInWithPopup(auth, googleProvider);
-            await checkAdminAndRedirect(result.user);
-        } catch (error) {
-            console.error("Error during Google sign-in: ", error);
-            alert('حدث خطأ أثناء محاولة تسجيل الدخول.');
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <div className="flex items-center justify-center min-h-screen bg-background-dark">
-            <div className="p-10 bg-surface-dark border border-border-color rounded-lg shadow-xl w-full max-w-md">
-                <h1 className="text-3xl font-bold mb-4 text-center">Kawn<span className="text-primary-blue">Hub</span></h1>
-                <h2 className="text-xl text-text-secondary mb-8 text-center">تسجيل دخول لوحة التحكم</h2>
-                
-                {/* الخطوة 3: نضيف نموذج تسجيل الدخول بالإيميل */}
-                <form onSubmit={handleEmailSignIn} className="space-y-4">
-                    <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-text-secondary mb-2 text-right">
-                            البريد الإلكتروني
-                        </label>
-                        <input
-                            type="email"
-                            id="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full rounded-lg border border-border-color bg-background-dark p-3 text-text-primary focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/50"
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="password" className="block text-sm font-medium text-text-secondary mb-2 text-right">
-                            كلمة المرور
-                        </label>
-                        <input
-                            type="password"
-                            id="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full rounded-lg border border-border-color bg-background-dark p-3 text-text-primary focus:border-primary-blue focus:ring-2 focus:ring-primary-blue/50"
-                            required
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="w-full px-6 py-3 bg-primary-blue text-white font-bold rounded-lg transition-colors hover:bg-primary-blue/90 disabled:bg-gray-500"
-                    >
-                        {isLoading ? 'جاري التحقق...' : 'تسجيل الدخول'}
-                    </button>
-                </form>
-
-                {/* --- فاصل --- */}
-                <div className="flex items-center my-6">
-                    <div className="flex-grow border-t border-border-color"></div>
-                    <span className="mx-4 text-text-secondary text-sm">أو</span>
-                    <div className="flex-grow border-t border-border-color"></div>
-                </div>
-
-                {/* --- زر تسجيل الدخول بجوجل --- */}
-                <button
-                    onClick={handleGoogleSignIn}
-                    disabled={isLoading}
-                    className="inline-flex items-center justify-center gap-3 w-full px-6 py-3 bg-surface-dark border border-border-color text-text-primary font-bold rounded-lg transition-colors hover:bg-background-dark disabled:bg-gray-500"
-                >
-                    <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
-                        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z" />
-                        <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.108-11.283-7.946l-6.522 5.025C9.505 41.219 16.227 44 24 44z" />
-                        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C39.756 36.318 44 30.778 44 24c0-1.341-.138-2.65-.389-3.917z" />
-                    </svg>
-                    {isLoading ? 'جاري التحقق...' : 'المتابعة باستخدام Google'}
-                </button>
+        <div className="bg-surface-dark border border-border-color p-8 rounded-3xl shadow-2xl">
+          <div className="mb-6 flex justify-center">
+            <div className="bg-gradient-to-br from-primary-blue to-primary-purple p-4 rounded-2xl text-white shadow-lg">
+              <Sparkles size={32} />
             </div>
-        </div>
-    );
-}
+          </div>
 
+          <h1 className="text-2xl font-bold mb-2 text-text-primary">حياك الله! 👋</h1>
+          <p className="text-text-secondary mb-8">
+            سجل دخولك عشان تحفظ موادك، وتخصص تجربتك، وتوصل للمختبر.
+          </p>
+
+          <button
+            onClick={loginWithGoogle}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-100 transition-all hover:-translate-y-1 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {/* Google Icon SVG */}
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            </svg>
+            <span>استمرار باستخدام Google</span>
+          </button>
+
+          <div className="mt-8 pt-6 border-t border-border-color/50">
+            <Link href="/hub" className="text-sm text-text-secondary hover:text-primary-blue flex items-center justify-center gap-1 group">
+              أبي أتصفح كزائر فقط <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform rtl:rotate-180" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
