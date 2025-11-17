@@ -4,11 +4,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
+
+// 1. استيرادات إضافية للمفضلة
+import { db } from '@/lib/firebase';
+import { documentId, where, query, collection, getDocs } from 'firebase/firestore';
 import { 
   User, Mail, GraduationCap, Calendar, Save, Edit2, 
   BookOpen, Star, Clock, Settings, CheckCircle, Bookmark,
-  LogOut, ChevronDown, HelpCircle 
+  LogOut, ChevronDown, HelpCircle, ArrowRight // 2. أضفنا ArrowRight
 } from 'lucide-react';
+import toast from 'react-hot-toast'; // 3. أضفنا Toast (ستحتاجه)
 
 const majors = [
   { id: 'CS', name: 'علوم الحاسب', code: 'CS' },
@@ -27,6 +32,9 @@ export default function ProfileClient() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  // 4. حالة جديدة لبيانات المفضلة
+  const [bookmarksData, setBookmarksData] = useState([]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
         if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -36,6 +44,33 @@ export default function ProfileClient() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // 5. useEffect جديد لجلب بيانات المفضلة
+  useEffect(() => {
+    const fetchBookmarks = async () => {
+        // نتأكد أن المستخدم موجود ولديه قائمة مفضلة
+        if (user?.favorites?.length > 0) {
+            try {
+                // جلب الشروحات التي الـ ID حقها موجود في قائمة المفضلة
+                // ملاحظة: Firestore يسمح بـ 10 عناصر كحد أقصى في 'in'. هذا كافٍ لـ v2.0
+                const q = query(collection(db, 'topics'), where(documentId(), 'in', user.favorites.slice(0, 10)));
+                const snap = await getDocs(q);
+                const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                setBookmarksData(data);
+            } catch (e) {
+                console.error("Error fetching bookmarks:", e);
+                toast.error('فشل في جلب المفضلة');
+            }
+        } else {
+            setBookmarksData([]);
+        }
+    };
+    
+    // نجلب البيانات فقط إذا كان التبويب مفتوحاً
+    if (activeTab === 'bookmarks') {
+        fetchBookmarks();
+    }
+  }, [user, activeTab]); // إعادة الجلب عند تغيير المستخدم أو فتح التبويب
 
   if (!user) return <div className="p-20 text-center text-text-secondary animate-pulse">جاري تحميل بيانات الطالب...</div>;
 
@@ -48,7 +83,7 @@ export default function ProfileClient() {
 
   const stats = [
     { label: 'شروحات قرأتها', value: '0', icon: BookOpen, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: 'في المفضلة', value: '0', icon: Bookmark, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+    { label: 'في المفضلة', value: bookmarksData.length, icon: Bookmark, color: 'text-yellow-400', bg: 'bg-yellow-500/10' }, // تحديث حي
     { label: 'أيام الدراسة', value: '1', icon: Clock, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   ];
 
@@ -108,19 +143,23 @@ export default function ProfileClient() {
         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-primary-blue via-purple-600 to-primary-blue opacity-20"></div>
         
         <div className="relative z-10 flex flex-col md:flex-row items-end gap-6 mt-12">
-          {/* الصورة (تم إزالة زر التعديل منها) */}
           <div className="relative group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-blue to-purple-600 rounded-full opacity-75 blur"></div>
             <div className="relative h-28 w-28 rounded-full border-4 border-background-dark overflow-hidden bg-background-dark flex items-center justify-center">
                 {user.photoURL ? (
-                    <Image src={user.photoURL} alt={user.name} fill className="object-cover" />
+                    <Image 
+                        src={user.photoURL} 
+                        // ✅ الحل: إضافة قيمة احتياطية
+                        alt={user.name || "الصورة الشخصية"} 
+                        fill 
+                        className="object-cover" 
+                    />
                 ) : (
                     <User size={48} className="text-text-secondary" />
                 )}
             </div>
           </div>
 
-          {/* المعلومات الأساسية */}
           <div className="flex-1 mb-2">
             <h1 className="text-3xl font-bold text-text-primary">{user.name}</h1>
             <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-text-secondary">
@@ -210,7 +249,7 @@ export default function ProfileClient() {
                     {activeTab === 'overview' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary-blue rounded-t-full"></div>}
                 </button>
                 <button onClick={() => setActiveTab('bookmarks')} className={`pb-3 px-2 text-sm font-bold transition-colors relative whitespace-nowrap ${activeTab === 'bookmarks' ? 'text-primary-blue' : 'text-text-secondary hover:text-text-primary'}`}>
-                    المفضلة (Bookmarks)
+                    المفضلة ({bookmarksData.length})
                     {activeTab === 'bookmarks' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary-blue rounded-t-full"></div>}
                 </button>
                 <button onClick={() => setActiveTab('settings')} className={`pb-3 px-2 text-sm font-bold transition-colors relative whitespace-nowrap ${activeTab === 'settings' ? 'text-primary-blue' : 'text-text-secondary hover:text-text-primary'}`}>
@@ -237,13 +276,37 @@ export default function ProfileClient() {
                     </div>
                 )}
 
+                {/* 6. هذا هو الكود المحدث لتبويب المفضلة */}
                 {activeTab === 'bookmarks' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                         <div className="text-center py-12">
-                             <Star size={48} className="mx-auto text-text-secondary/20 mb-4" />
-                             <p className="text-text-secondary">لا توجد عناصر في المفضلة بعد.</p>
-                             <p className="text-xs text-text-secondary mt-2">اضغط على علامة الـ Bookmark في أي شرح لحفظه هنا.</p>
-                         </div>
+                        {bookmarksData.length > 0 ? (
+                            bookmarksData.map(topic => (
+                                // 7. تم تحديث الرابط ليتوافق مع هيكل الموقع الحقيقي
+                                // سنستخدم Query Param لإخبار الصفحة أي شرح نفتحه
+                                <Link 
+                                    key={topic.id} 
+                                    href={`/materials/${topic.materialSlug}?topic=${topic.id}`}
+                                    className="flex items-center justify-between p-4 rounded-xl border border-border-color bg-surface-dark hover:border-primary-blue transition-all group"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 rounded-lg bg-yellow-500/10 text-yellow-500">
+                                            <Bookmark size={20} fill="currentColor" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-text-primary group-hover:text-primary-blue transition-colors">{topic.title}</h4>
+                                            <span className="text-xs text-text-secondary bg-background-dark px-2 py-1 rounded border border-border-color mt-1 inline-block">{topic.materialSlug}</span>
+                                        </div>
+                                    </div>
+                                    <ArrowRight size={18} className="text-text-secondary group-hover:translate-x-[-5px] transition-transform rtl:rotate-180" />
+                                </Link>
+                            ))
+                        ) : (
+                            <div className="text-center py-12">
+                                <Star size={48} className="mx-auto text-text-secondary/20 mb-4" />
+                                <p className="text-text-secondary">لا توجد عناصر في المفضلة بعد.</p>
+                                <p className="text-xs text-text-secondary mt-2">تصفح المواد واضغط على زر الحفظ لتعود إليها لاحقاً.</p>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -262,7 +325,6 @@ export default function ProfileClient() {
                 )}
             </div>
         </div>
-
       </div>
     </div>
   );

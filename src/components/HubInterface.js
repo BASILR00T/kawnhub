@@ -6,17 +6,21 @@ import Image from 'next/image';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import MajorSelector from '@/components/MajorSelector';
-// ✅ أضفنا LayoutDashboard
-import { Search, ArrowRight, Computer, HelpCircle, LogIn, LogOut, User, ChevronDown, Settings, LayoutDashboard } from 'lucide-react';
+import { Search, ArrowRight, Computer, HelpCircle, LogIn, LogOut, User, ChevronDown, LayoutDashboard, Clock } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
-// ... (DynamicIcon و BentoCard كما هما) ...
+// استيراد أدوات Firestore لجلب تفاصيل الشروحات
+import { db } from '@/lib/firebase';
+import { collection, query, where, documentId, getDocs } from 'firebase/firestore';
+
+// --- المكون الديناميكي للأيقونات ---
 const DynamicIcon = ({ name, ...props }) => {
     const IconComponent = LucideIcons[name];
-    if (!IconComponent) return <Computer {...props} />;
+    if (!IconComponent) return <LucideIcons.BookOpen {...props} />; // أيقونة افتراضية
     return <IconComponent {...props} />;
 };
 
+// --- مكون البطاقة ---
 const BentoCard = ({ children, className, href }) => { 
     return ( 
         <Link href={href || '#'} className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border-color bg-surface-dark p-6 transition-transform duration-300 ease-in-out hover:-translate-y-1 ${className}`}> 
@@ -33,6 +37,10 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const dropdownRef = useRef(null);
 
+    // حالة جديدة لتخزين الشروحات الأخيرة
+    const [recentTopics, setRecentTopics] = useState([]);
+
+    // إغلاق القائمة عند النقر خارجها
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -42,6 +50,31 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // جلب تفاصيل الشروحات الأخيرة
+    useEffect(() => {
+        const fetchRecents = async () => {
+            // نتأكد أن المستخدم موجود، وأنه طالب، ولديه قائمة مشاهدة
+            if (user && !user.isAdmin && user.recentlyViewed?.length > 0) {
+                try {
+                    const q = query(collection(db, 'topics'), where(documentId(), 'in', user.recentlyViewed.slice(0, 5)));
+                    const snap = await getDocs(q);
+                    const topicsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    // ترتيبها حسب ما هو مسجل عند المستخدم
+                    const sortedTopics = user.recentlyViewed
+                        .map(id => topicsData.find(t => t.id === id))
+                        .filter(Boolean); // فلترة أي شروحات قد تكون حذفت
+                    setRecentTopics(sortedTopics);
+                } catch (e) { 
+                    console.error("Failed to fetch recent topics:", e);
+                    setRecentTopics([]);
+                }
+            } else {
+                setRecentTopics([]); // تصفير القائمة إذا كان زائراً أو أدمن
+            }
+        };
+        fetchRecents();
+    }, [user]); // إعادة الجلب عند تغيير المستخدم
 
     const latestTopic = initialTopics.length > 0 ? initialTopics[0] : null;
 
@@ -55,6 +88,17 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
         let items = [...initialMaterials];
         const lowerCaseQuery = searchQuery.toLowerCase();
 
+        // --- ✅ 1. فلترة التخصص (الميزة الجديدة) ---
+        // إذا كان المستخدم طالباً واختار تخصصه، قم بالفلترة
+        if (user && !user.isAdmin && user.major) {
+            items = items.filter(material => 
+                // تأكد أن المادة لديها مصفوفة التخصصات وأنها تشمل تخصص الطالب
+                Array.isArray(material.targetMajors) && 
+                material.targetMajors.includes(user.major)
+            );
+        }
+
+        // --- 2. فلترة الوسوم (كما كانت) ---
         if (selectedTag) {
             const matchingTopicSlugs = new Set(
                 initialTopics
@@ -64,6 +108,7 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
             items = items.filter(material => matchingTopicSlugs.has(material.slug));
         }
 
+        // --- 3. فلترة البحث (كما كانت) ---
         if (searchQuery) {
             items = items.filter(material => 
                 material.title.toLowerCase().includes(lowerCaseQuery) || 
@@ -75,7 +120,7 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
             );
         }
         return items;
-    }, [searchQuery, selectedTag, initialMaterials, initialTopics]);
+    }, [searchQuery, selectedTag, initialMaterials, initialTopics, user]); // ✅ تأكد من إضافة user هنا
     
     const handleTagClick = (slug) => {
         setSelectedTag(prev => prev === slug ? null : slug);
@@ -103,7 +148,6 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
                             المختبر 🧪
                         </Link> 
                         
-                        {/* ✅ زر الأدمن (يظهر فقط للمشرفين) */}
                         {(user?.role === 'admin' || user?.role === 'editor') && (
                             <Link href="/admin" className="text-primary-purple hover:text-white transition-colors flex items-center gap-1 text-sm font-bold bg-primary-purple/10 px-3 py-1.5 rounded-lg border border-primary-purple/20">
                                 <LayoutDashboard size={16} />
@@ -123,7 +167,7 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
                         <div className="relative" ref={dropdownRef}>
                             <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-2 focus:outline-none group">
                                 {user.photoURL ? (
-                                    <Image src={user.photoURL} alt="User" width={36} height={36} className="rounded-full border border-primary-blue/50 group-hover:border-primary-blue transition-colors" />
+                                    <Image src={user.photoURL} alt={user.name || "الصورة الشخصية"} width={36} height={36} className="rounded-full border border-primary-blue/50 group-hover:border-primary-blue transition-colors" />
                                 ) : (
                                     <div className="w-9 h-9 rounded-full bg-primary-blue/20 flex items-center justify-center text-primary-blue font-bold border border-primary-blue/50 group-hover:border-primary-blue transition-colors">
                                         {user.email?.[0].toUpperCase()}
@@ -139,7 +183,6 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
                                         <p className="text-xs text-text-secondary truncate font-mono mt-0.5">{user.email}</p>
                                     </div>
                                     
-                                    {/* رابط الأدمن في القائمة أيضاً (للجوال) */}
                                     {(user?.role === 'admin' || user?.role === 'editor') && (
                                         <Link href="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-primary-purple hover:bg-primary-purple/10 transition-colors mx-2 rounded-lg">
                                             <LayoutDashboard size={16} />
@@ -170,7 +213,35 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
                 </nav> 
              </header>
 
-            {/* ... (باقي محتوى الصفحة كما هو) ... */}
+            {/* --- قسم "أكمل المذاكرة" --- */}
+            {user && !user.isAdmin && recentTopics.length > 0 && (
+                <div className="mb-12">
+                    <h2 className="text-2xl font-bold text-text-primary mb-4 flex items-center gap-2">
+                        <Clock className="text-primary-blue" />
+                        أكمل من حيث توقفت
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {recentTopics.map(topic => (
+                            <Link 
+                                href={`/materials/${topic.materialSlug}?topic=${topic.id}`} 
+                                key={topic.id}
+                                className="group p-4 rounded-xl border border-border-color bg-surface-dark hover:border-primary-blue transition-all flex items-center gap-4"
+                            >
+                                <div className="p-3 rounded-lg bg-primary-blue/10 text-primary-blue shrink-0">
+                                    <DynamicIcon name={initialMaterials.find(m => m.slug === topic.materialSlug)?.icon || 'BookOpen'} size={20} />
+                                G</div>
+                                <div>
+                                    <p className="text-sm font-bold text-text-primary group-hover:text-primary-blue transition-colors truncate">{topic.title}</p>
+                                    <p className="text-xs text-text-secondary">{initialMaterials.find(m => m.slug === topic.materialSlug)?.title}</p>
+                                </div>
+                                <ArrowRight size={16} className="text-text-secondary mr-auto opacity-0 group-hover:opacity-100 transition-opacity rtl:rotate-180" />
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* --- الشبكة الرئيسية (Main Grid) --- */}
             <main className="grid grid-cols-6 auto-rows-[220px] gap-4">
                 {/* بطاقة البحث */}
                 <div className="col-span-6 md:col-span-4 relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border-color bg-surface-dark p-6">
@@ -205,7 +276,7 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
                 </div>
                 
                 {/* بطاقة آخر تحديث */}
-                <BentoCard className="col-span-6 md:col-span-2" href={latestTopic ? `/materials/${latestTopic.materialSlug}` : '#'}>
+                <BentoCard className="col-span-6 md:col-span-2" href={latestTopic ? `/materials/${latestTopic.materialSlug}?topic=${latestTopic.id}` : '#'}>
                     {latestTopic ? (
                         <>
                             <div className='flex-grow'>
