@@ -270,7 +270,7 @@ export default function ProfileClient() {
                             bookmarksData.map(topic => (
                                 <Link 
                                     key={topic.id} 
-                                    // ✅ إصلاح: استخدام الرابط الصحيح
+                                    // ✅ الإصلاح: إضافة topic.materialSlug
                                     href={`/materials/${topic.materialSlug}?topic=${topic.id}`}
                                     className="flex items-center justify-between p-4 rounded-xl border border-border-color bg-surface-dark hover:border-primary-blue transition-all group"
                                 >

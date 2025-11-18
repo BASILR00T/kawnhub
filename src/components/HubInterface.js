@@ -53,24 +53,27 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
 
     // جلب تفاصيل الشروحات الأخيرة
     useEffect(() => {
-        const fetchRecents = async () => {
-            // نتأكد أن المستخدم موجود، وأنه طالب، ولديه قائمة مشاهدة
-            if (user && !user.isAdmin && user.recentlyViewed?.length > 0) {
+const fetchRecents = async () => {
+            // ✅ 1. نقوم بتنظيف القائمة أولاً
+            const validRecents = user?.recentlyViewed?.filter(Boolean); // filter(Boolean) يحذف القيم الفارغة
+
+            if (validRecents?.length > 0) {
                 try {
-                    const q = query(collection(db, 'topics'), where(documentId(), 'in', user.recentlyViewed.slice(0, 5)));
+                    // ✅ 2. نستخدم القائمة النظيفة
+                    const q = query(collection(db, 'topics'), where(documentId(), 'in', validRecents.slice(0, 5)));
                     const snap = await getDocs(q);
                     const topicsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    // ترتيبها حسب ما هو مسجل عند المستخدم
-                    const sortedTopics = user.recentlyViewed
+                    
+                    const sortedTopics = validRecents
                         .map(id => topicsData.find(t => t.id === id))
-                        .filter(Boolean); // فلترة أي شروحات قد تكون حذفت
+                        .filter(Boolean);
                     setRecentTopics(sortedTopics);
                 } catch (e) { 
                     console.error("Failed to fetch recent topics:", e);
                     setRecentTopics([]);
                 }
             } else {
-                setRecentTopics([]); // تصفير القائمة إذا كان زائراً أو أدمن
+                setRecentTopics([]);
             }
         };
         fetchRecents();
