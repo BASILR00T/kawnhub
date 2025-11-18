@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation'; // 1. استيراد useRouter
 import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { updateMaterial } from '@/app/actions/materials'; // 1. استيراد الأكشن
+import { doc, getDoc, updateDoc } from 'firebase/firestore'; // 2. استيراد أدوات Firestore
 import toast, { Toaster } from 'react-hot-toast';
 
 const majorsList = [
@@ -16,14 +15,12 @@ const majorsList = [
 ];
 
 export default function EditMaterialPage() {
-    const router = useRouter();
+    const router = useRouter(); // 3. تعريف الراوتر
     const params = useParams();
     const materialId = params.id;
     
     const [isLoading, setIsLoading] = useState(true);
-    const [materialData, setMaterialData] = useState(null); // حالة لتخزين البيانات
-    
-    // --- State للتخصصات ---
+    const [materialData, setMaterialData] = useState(null);
     const [targetMajors, setTargetMajors] = useState([]);
 
     useEffect(() => {
@@ -35,7 +32,7 @@ export default function EditMaterialPage() {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 setMaterialData(data);
-                setTargetMajors(data.targetMajors || []); // تحميل التخصصات المحفوظة
+                setTargetMajors(data.targetMajors || []);
             } else {
                 toast.error("المادة غير موجودة!");
                 router.push('/admin/materials');
@@ -53,22 +50,40 @@ export default function EditMaterialPage() {
         );
     };
 
-    // 2. دالة وسيطة للتعامل مع الإرسال
-    const handleSubmit = async (event) => {
-        event.preventDefault();
+    // 4. دالة الحفظ تعمل الآن في المتصفح (Client)
+    const handleSubmit = async (e) => {
+        e.preventDefault();
         if (targetMajors.length === 0) {
             toast.error('الرجاء اختيار تخصص واحد على الأقل.');
             return;
         }
-        
         setIsLoading(true);
-        const formData = new FormData(event.target);
-        
-        // استدعاء السيرفر أكشن
-        const result = await updateMaterial(materialId, formData);
 
-        if (result?.error) {
-            toast.error(result.error);
+        const updatedMaterial = {
+            title: e.target.title.value,
+            slug: e.target.slug.value,
+            courseCode: e.target.courseCode.value,
+            order: Number(e.target.order.value),
+            icon: e.target.icon.value,
+            description: { 
+                en: e.target.descriptionEn.value, 
+                ar: e.target.descriptionAr.value 
+            },
+            targetMajors: targetMajors
+        };
+
+        try {
+            const docRef = doc(db, 'materials', materialId);
+            await updateDoc(docRef, updatedMaterial);
+            toast.success('تم تحديث المادة بنجاح!');
+            
+            // ✅ 5. إجبار Vercel على تحديث الكاش
+            router.refresh(); 
+            
+            router.push('/admin/materials');
+        } catch (error) {
+            console.error("Error updating document: ", error);
+            toast.error(`حدث خطأ: ${error.message}`);
             setIsLoading(false);
         }
     };
@@ -81,8 +96,6 @@ export default function EditMaterialPage() {
         <div>
             <Toaster position="bottom-center" />
             <h1 className="text-3xl font-bold mb-8">تعديل المادة: {materialData.title}</h1>
-            
-            {/* 3. ربط الدالة بالنموذج */}
             <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
                 
                 <div>
@@ -117,8 +130,8 @@ export default function EditMaterialPage() {
                             <label key={major.id} className="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-border-color bg-surface-dark">
                                 <input
                                     type="checkbox"
-                                    name="targetMajors"
-                                    value={major.id}
+                                    name="targetMajors" // ✅ الاسم يجب أن يكون مطابقاً
+                                    value={major.id} // ✅ القيمة
                                     checked={targetMajors.includes(major.id)}
                                     onChange={() => handleMajorsChange(major.id)}
                                     className="h-4 w-4 rounded text-primary-blue bg-background-dark border-border-color focus:ring-primary-blue"

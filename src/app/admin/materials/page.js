@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // 1. استيراد الراوتر
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { deleteMaterial } from '@/app/actions/materials'; // 1. استيراد الأكشن
-import toast, { Toaster } from 'react-hot-toast'; // 2. استيراد toast
+import { collection, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore'; // 2. استيراد deleteDoc
+import toast, { Toaster } from 'react-hot-toast';
 
 const EditIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> );
 const DeleteIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg> );
@@ -13,8 +13,10 @@ const DeleteIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="18" he
 export default function MaterialsPage() {
     const [materials, setMaterials] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const router = useRouter(); // 3. تعريف الراوتر
 
     const fetchMaterials = async () => {
+        setIsLoading(true);
         const materialsCol = collection(db, 'materials');
         const q = query(materialsCol, orderBy('order', 'asc'));
         const materialsSnapshot = await getDocs(q);
@@ -27,26 +29,30 @@ export default function MaterialsPage() {
         fetchMaterials();
     }, []);
 
-    // 3. تحديث دالة الحذف
+    // 4. دالة الحذف (تعمل في المتصفح)
     const handleDelete = async (id, title) => {
-        // (استخدام toast بدلاً من confirm/alert)
         toast((t) => (
             <div className="flex flex-col gap-3 p-2">
-                <p>هل أنت متأكد أنك تريد حذف <strong className="text-red-500">{title}</strong>؟ لا يمكن التراجع.</p>
+                <p>هل أنت متأكد أنك تريد حذف <strong className="text-red-500">{title}</strong>؟</p>
                 <div className="flex gap-2">
                     <button
                         className="w-full bg-red-500 text-white px-3 py-1 rounded text-sm"
                         onClick={async () => {
-                            toast.dismiss(t.id); // إغلاق الرسالة
+                            toast.dismiss(t.id);
                             const loadingToast = toast.loading('جاري الحذف...');
-                            const result = await deleteMaterial(id); // استدعاء الأكشن
-                            toast.dismiss(loadingToast);
-
-                            if (result?.error) {
-                                toast.error(result.error);
-                            } else {
-                                toast.success(result.success);
-                                fetchMaterials(); // إعادة جلب البيانات بعد الحذف
+                            
+                            try {
+                                await deleteDoc(doc(db, 'materials', id));
+                                toast.dismiss(loadingToast);
+                                toast.success('تم حذف المادة بنجاح');
+                                
+                                // ✅ 5. إجبار Vercel على تحديث الكاش
+                                router.refresh(); 
+                                
+                                fetchMaterials(); // تحديث القائمة في الواجهة
+                            } catch (error) {
+                                toast.dismiss(loadingToast);
+                                toast.error(`فشل الحذف: ${error.message}`);
                             }
                         }}
                     >
@@ -94,8 +100,7 @@ export default function MaterialsPage() {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{material.title}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary font-mono">{material.courseCode}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">
-                                    {/* ✅ عرض التخصصات */}
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-1 flex-wrap">
                                         {material.targetMajors?.map(major => (
                                             <span key={major} className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-xs font-bold">{major}</span>
                                         ))}

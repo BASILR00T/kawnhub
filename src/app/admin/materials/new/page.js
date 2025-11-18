@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { addMaterial } from '@/app/actions/materials'; // 1. استيراد الأكشن
+import { useRouter } from 'next/navigation'; // 1. استيراد useRouter
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; // 2. استيراد أدوات Firestore
 import toast, { Toaster } from 'react-hot-toast';
 
 const majorsList = [
@@ -14,6 +15,7 @@ const majorsList = [
 ];
 
 export default function NewMaterialPage() {
+    const router = useRouter(); // 3. تعريف الراوتر
     const [isLoading, setIsLoading] = useState(false);
     const [targetMajors, setTargetMajors] = useState([]);
 
@@ -25,33 +27,48 @@ export default function NewMaterialPage() {
         );
     };
 
-    // 2. دالة وسيطة للتعامل مع الإرسال
-    const handleSubmit = async (event) => {
-        event.preventDefault();
+    // 4. دالة الحفظ تعمل الآن في المتصفح (Client)
+    const handleSubmit = async (e) => {
+        e.preventDefault();
         if (targetMajors.length === 0) {
             toast.error('الرجاء اختيار تخصص واحد على الأقل.');
             return;
         }
-        
         setIsLoading(true);
-        const formData = new FormData(event.target);
-        
-        // استدعاء السيرفر أكشن
-        const result = await addMaterial(formData);
 
-        if (result?.error) {
-            toast.error(result.error);
+        const newMaterial = {
+            title: e.target.title.value,
+            slug: e.target.slug.value,
+            courseCode: e.target.courseCode.value,
+            order: Number(e.target.order.value),
+            icon: e.target.icon.value,
+            description: { 
+                en: e.target.descriptionEn.value, 
+                ar: e.target.descriptionAr.value 
+            },
+            targetMajors: targetMajors,
+            createdAt: serverTimestamp()
+        };
+
+        try {
+            await addDoc(collection(db, 'materials'), newMaterial);
+            toast.success('تم إنشاء المادة بنجاح!');
+            
+            // ✅ 5. إجبار Vercel على تحديث الكاش
+            router.refresh(); 
+
+            router.push('/admin/materials');
+        } catch (error) {
+            console.error("Error adding document: ", error);
+            toast.error(`حدث خطأ: ${error.message}`);
             setIsLoading(false);
         }
-        // (إعادة التوجيه ستتم من السيرفر أكشن)
     };
 
     return (
         <div>
             <Toaster position="bottom-center" />
             <h1 className="text-3xl font-bold mb-8">إضافة مادة جديدة</h1>
-            
-            {/* 3. ربط الدالة بالنموذج */}
             <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
                 
                 <div>
@@ -86,8 +103,8 @@ export default function NewMaterialPage() {
                             <label key={major.id} className="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-border-color bg-surface-dark">
                                 <input
                                     type="checkbox"
-                                    name="targetMajors" // ✅ الاسم يجب أن يكون مطابقاً
-                                    value={major.id} // ✅ القيمة
+                                    name="targetMajors"
+                                    value={major.id}
                                     checked={targetMajors.includes(major.id)}
                                     onChange={() => handleMajorsChange(major.id)}
                                     className="h-4 w-4 rounded text-primary-blue bg-background-dark border-border-color focus:ring-primary-blue"
