@@ -4,16 +4,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
-
-// 1. استيرادات إضافية للمفضلة
 import { db } from '@/lib/firebase';
 import { documentId, where, query, collection, getDocs } from 'firebase/firestore';
 import { 
   User, Mail, GraduationCap, Calendar, Save, Edit2, 
   BookOpen, Star, Clock, Settings, CheckCircle, Bookmark,
-  LogOut, ChevronDown, HelpCircle, ArrowRight // 2. أضفنا ArrowRight
+  LogOut, ChevronDown, HelpCircle, ArrowRight
 } from 'lucide-react';
-import toast from 'react-hot-toast'; // 3. أضفنا Toast (ستحتاجه)
+import toast from 'react-hot-toast';
 
 const majors = [
   { id: 'CS', name: 'علوم الحاسب', code: 'CS' },
@@ -32,7 +30,6 @@ export default function ProfileClient() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // 4. حالة جديدة لبيانات المفضلة
   const [bookmarksData, setBookmarksData] = useState([]);
 
   useEffect(() => {
@@ -45,14 +42,12 @@ export default function ProfileClient() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 5. useEffect جديد لجلب بيانات المفضلة
+  // جلب بيانات المفضلة
   useEffect(() => {
     const fetchBookmarks = async () => {
-        // نتأكد أن المستخدم موجود ولديه قائمة مفضلة
+        // نستخدم user.favorites (الذي يأتي من AuthContext)
         if (user?.favorites?.length > 0) {
             try {
-                // جلب الشروحات التي الـ ID حقها موجود في قائمة المفضلة
-                // ملاحظة: Firestore يسمح بـ 10 عناصر كحد أقصى في 'in'. هذا كافٍ لـ v2.0
                 const q = query(collection(db, 'topics'), where(documentId(), 'in', user.favorites.slice(0, 10)));
                 const snap = await getDocs(q);
                 const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -66,11 +61,10 @@ export default function ProfileClient() {
         }
     };
     
-    // نجلب البيانات فقط إذا كان التبويب مفتوحاً
     if (activeTab === 'bookmarks') {
         fetchBookmarks();
     }
-  }, [user, activeTab]); // إعادة الجلب عند تغيير المستخدم أو فتح التبويب
+  }, [user, activeTab]); // نعتمد على user من الكونتكست
 
   if (!user) return <div className="p-20 text-center text-text-secondary animate-pulse">جاري تحميل بيانات الطالب...</div>;
 
@@ -83,14 +77,13 @@ export default function ProfileClient() {
 
   const stats = [
     { label: 'شروحات قرأتها', value: '0', icon: BookOpen, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: 'في المفضلة', value: bookmarksData.length, icon: Bookmark, color: 'text-yellow-400', bg: 'bg-yellow-500/10' }, // تحديث حي
+    { label: 'في المفضلة', value: user?.favorites?.length || 0, icon: Bookmark, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
     { label: 'أيام الدراسة', value: '1', icon: Clock, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   ];
 
   return (
     <div className="mx-auto max-w-6xl p-6">
       
-      {/* Header */}
       <header className="mb-8 flex items-center justify-between py-4 border-b border-border-color/50"> 
         <Link href="/" className="text-3xl font-bold text-text-primary no-underline hover:opacity-80 transition-opacity">
            Kawn<span className="text-primary-blue">Hub</span> 
@@ -108,7 +101,7 @@ export default function ProfileClient() {
              <div className="relative" ref={dropdownRef}>
                 <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-2 focus:outline-none group">
                     {user.photoURL ? (
-                        <Image src={user.photoURL} alt="User" width={36} height={36} className="rounded-full border border-primary-blue/50 group-hover:border-primary-blue transition-colors" />
+                        <Image src={user.photoURL} alt={user.name || "الصورة الشخصية"} width={36} height={36} className="rounded-full border border-primary-blue/50 group-hover:border-primary-blue transition-colors" />
                     ) : (
                         <div className="w-9 h-9 rounded-full bg-primary-blue/20 flex items-center justify-center text-primary-blue font-bold border border-primary-blue/50 group-hover:border-primary-blue transition-colors">
                             {user.email?.[0].toUpperCase()}
@@ -123,7 +116,7 @@ export default function ProfileClient() {
                             <p className="text-sm font-bold text-text-primary truncate">{user.name}</p>
                             <p className="text-xs text-text-secondary truncate font-mono mt-0.5">{user.email}</p>
                         </div>
-                        <Link href="/hub" className="flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue transition-colors mx-2 rounded-lg">
+                        <Link href="/hub" className="flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue mx-2 rounded-lg">
                             <BookOpen size={16} />
                             <span>تصفح المواد</span>
                         </Link>
@@ -147,13 +140,8 @@ export default function ProfileClient() {
             <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-blue to-purple-600 rounded-full opacity-75 blur"></div>
             <div className="relative h-28 w-28 rounded-full border-4 border-background-dark overflow-hidden bg-background-dark flex items-center justify-center">
                 {user.photoURL ? (
-                    <Image 
-                        src={user.photoURL} 
-                        // ✅ الحل: إضافة قيمة احتياطية
-                        alt={user.name || "الصورة الشخصية"} 
-                        fill 
-                        className="object-cover" 
-                    />
+                    // ✅ إصلاح: إضافة قيمة احتياطية لـ alt
+                    <Image src={user.photoURL} alt={user.name || 'الصورة الشخصية'} fill className="object-cover" />
                 ) : (
                     <User size={48} className="text-text-secondary" />
                 )}
@@ -164,7 +152,7 @@ export default function ProfileClient() {
             <h1 className="text-3xl font-bold text-text-primary">{user.name}</h1>
             <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-text-secondary">
                 <span className="flex items-center gap-1"><Mail size={14} /> {user.email}</span>
-                <span className="flex items-center gap-1"><Calendar size={14} /> انضممت في {user.createdAt?.toDate ? user.createdAt.toDate().toLocaleDateString('ar-EG') : '2025'}</span>
+                <span className="flex items-center gap-1"><Calendar size={14} /> انضممت في {user.createdAt?.toDate ? user.createdAt.toDate().toLocaleDateString('ar-EG') : '...'}</span>
                 <span className="px-2 py-0.5 rounded-md bg-primary-blue/10 text-primary-blue text-xs font-bold border border-primary-blue/20">
                     {user.role === 'admin' ? 'مشرف النظام' : 'طالب نشيط'}
                 </span>
@@ -276,15 +264,13 @@ export default function ProfileClient() {
                     </div>
                 )}
 
-                {/* 6. هذا هو الكود المحدث لتبويب المفضلة */}
                 {activeTab === 'bookmarks' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                         {bookmarksData.length > 0 ? (
                             bookmarksData.map(topic => (
-                                // 7. تم تحديث الرابط ليتوافق مع هيكل الموقع الحقيقي
-                                // سنستخدم Query Param لإخبار الصفحة أي شرح نفتحه
                                 <Link 
                                     key={topic.id} 
+                                    // ✅ إصلاح: استخدام الرابط الصحيح
                                     href={`/materials/${topic.materialSlug}?topic=${topic.id}`}
                                     className="flex items-center justify-between p-4 rounded-xl border border-border-color bg-surface-dark hover:border-primary-blue transition-all group"
                                 >
