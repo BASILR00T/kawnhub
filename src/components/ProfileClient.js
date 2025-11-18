@@ -42,13 +42,17 @@ export default function ProfileClient() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // جلب بيانات المفضلة
+  // --- ✅ هذا هو الكود الذي تم إصلاحه ---
   useEffect(() => {
     const fetchBookmarks = async () => {
-        // نستخدم user.favorites (الذي يأتي من AuthContext)
-        if (user?.favorites?.length > 0) {
+        // 1. تنظيف القائمة: إزالة أي قيم فارغة أو null
+        const validFavorites = user?.favorites?.filter(Boolean); 
+
+        // 2. التحقق من القائمة النظيفة
+        if (validFavorites?.length > 0) {
             try {
-                const q = query(collection(db, 'topics'), where(documentId(), 'in', user.favorites.slice(0, 10)));
+                // 3. استخدام القائمة النظيفة في الاستعلام
+                const q = query(collection(db, 'topics'), where(documentId(), 'in', validFavorites.slice(0, 10)));
                 const snap = await getDocs(q);
                 const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 setBookmarksData(data);
@@ -57,14 +61,14 @@ export default function ProfileClient() {
                 toast.error('فشل في جلب المفضلة');
             }
         } else {
-            setBookmarksData([]);
+            setBookmarksData([]); // تصفير القائمة إذا كانت فارغة
         }
     };
     
     if (activeTab === 'bookmarks') {
         fetchBookmarks();
     }
-  }, [user, activeTab]); // نعتمد على user من الكونتكست
+  }, [user, activeTab]); // --- نهاية الكود المُصلح ---
 
   if (!user) return <div className="p-20 text-center text-text-secondary animate-pulse">جاري تحميل بيانات الطالب...</div>;
 
@@ -77,13 +81,15 @@ export default function ProfileClient() {
 
   const stats = [
     { label: 'شروحات قرأتها', value: '0', icon: BookOpen, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: 'في المفضلة', value: user?.favorites?.length || 0, icon: Bookmark, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+    // تحديث حي لعدد المفضلة
+    { label: 'في المفضلة', value: user?.favorites?.filter(Boolean).length || 0, icon: Bookmark, color: 'text-yellow-400', bg: 'bg-yellow-500/10' }, 
     { label: 'أيام الدراسة', value: '1', icon: Clock, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   ];
 
   return (
     <div className="mx-auto max-w-6xl p-6">
       
+      {/* Header */}
       <header className="mb-8 flex items-center justify-between py-4 border-b border-border-color/50"> 
         <Link href="/" className="text-3xl font-bold text-text-primary no-underline hover:opacity-80 transition-opacity">
            Kawn<span className="text-primary-blue">Hub</span> 
@@ -140,7 +146,6 @@ export default function ProfileClient() {
             <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-blue to-purple-600 rounded-full opacity-75 blur"></div>
             <div className="relative h-28 w-28 rounded-full border-4 border-background-dark overflow-hidden bg-background-dark flex items-center justify-center">
                 {user.photoURL ? (
-                    // ✅ إصلاح: إضافة قيمة احتياطية لـ alt
                     <Image src={user.photoURL} alt={user.name || 'الصورة الشخصية'} fill className="object-cover" />
                 ) : (
                     <User size={48} className="text-text-secondary" />
@@ -270,7 +275,6 @@ export default function ProfileClient() {
                             bookmarksData.map(topic => (
                                 <Link 
                                     key={topic.id} 
-                                    // ✅ الإصلاح: إضافة topic.materialSlug
                                     href={`/materials/${topic.materialSlug}?topic=${topic.id}`}
                                     className="flex items-center justify-between p-4 rounded-xl border border-border-color bg-surface-dark hover:border-primary-blue transition-all group"
                                 >
