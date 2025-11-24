@@ -1,0 +1,81 @@
+[
+  {
+    "slug": "networks-1",
+    "title": "Networks 1",
+    "courseCode": "NET-101",
+    "description": {
+      "ar": "مقدمة في شبكات الحاسب، طبقات OSI، وعنونة IP.",
+      "en": "Introduction to Computer Networks, OSI Layers, and IP Addressing."
+    },
+    "icon": "Network",
+    "targetMajors": [
+      "CS",
+      "IT",
+      "ISE"
+    ],
+    "order": 1
+  },
+  {
+    "slug": "os-1",
+    "title": "Operating Systems",
+    "courseCode": "OS-202",
+    "description": {
+      "ar": "مفاهيم نظم التشغيل، إدارة العمليات، والذاكرة.",
+      "en": "OS Concepts, Process Management, and Memory."
+    },
+    "icon": "Cpu",
+    "targetMajors": [
+      "CS",
+      "IT"
+    ],
+    "order": 2
+  },
+  {
+    "slug": "programming-1",
+    "title": "Programming 1",
+    "courseCode": "CS-101",
+    "description": {
+      "ar": "أساسيات البرمجة بلغة بايثون/جافا للمبتدئين.",
+      "en": "Programming basics in Python/Java for beginners."
+    },
+    "icon": "Code2",
+    "targetMajors": [
+      "Common",
+      "CS",
+      "IT",
+      "ISE"
+    ],
+    "order": 3
+  },
+  {
+    "slug": "maintenance",
+    "title": "Computer Maintenance",
+    "courseCode": "IT-101",
+    "description": {
+      "ar": "صيانة الحاسب، استكشاف الأخطاء وإصلاحها، وإدارة النظام.",
+      "en": "PC Maintenance, Troubleshooting, and System Management."
+    },
+    "icon": "Wrench",
+    "targetMajors": [
+      "IT",
+      "ISE"
+    ],
+    "order": 4
+  },
+  {
+    "slug": "networks-intro",
+    "title": "Introduction to Networks",
+    "courseCode": "NET-100",
+    "description": {
+      "ar": "مقدمة في الشبكات، الكابلات، والمفاهيم الأساسية.",
+      "en": "Introduction to Networks, Cabling, and Basic Concepts."
+    },
+    "icon": "Network",
+    "targetMajors": [
+      "CS",
+      "IT",
+      "ISE"
+    ],
+    "order": 5
+  }
+]

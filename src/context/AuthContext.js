@@ -1,12 +1,11 @@
 'use client';
 
-// 1. استيراد useCallback
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { 
-  onAuthStateChanged, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut as firebaseSignOut 
+import {
+    onAuthStateChanged,
+    signInWithPopup,
+    GoogleAuthProvider,
+    signOut as firebaseSignOut
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -20,7 +19,6 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
-    // ... (useEffect الخاص بـ onAuthStateChanged يبقى كما هو) ...
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setLoading(true);
@@ -28,7 +26,7 @@ export function AuthProvider({ children }) {
                 try {
                     const adminRef = doc(db, 'admins', currentUser.email);
                     const adminSnap = await getDoc(adminRef);
-                    
+
                     if (adminSnap.exists()) {
                         setUser({ ...currentUser, role: adminSnap.data().role, isAdmin: true, favorites: [], recentlyViewed: [] });
                     } else {
@@ -36,10 +34,10 @@ export function AuthProvider({ children }) {
                         const userSnap = await getDoc(userRef);
 
                         if (userSnap.exists()) {
-                            setUser({ 
-                                ...currentUser, 
-                                role: 'student', 
-                                major: userSnap.data().major || null, 
+                            setUser({
+                                ...currentUser,
+                                role: 'student',
+                                major: userSnap.data().major || null,
                                 isAdmin: false,
                                 favorites: userSnap.data().favorites || [],
                                 recentlyViewed: userSnap.data().recentlyViewed || []
@@ -69,18 +67,25 @@ export function AuthProvider({ children }) {
         return () => unsubscribe();
     }, []);
 
-    // ✅ 2. تغليف كل الدوال بـ useCallback
     const handleLoginResult = useCallback(async (result) => {
+        console.log('🚀 handleLoginResult started', result.user.email);
         const user = result.user;
-        const adminRef = doc(db, 'admins', user.email);
-        const adminSnap = await getDoc(adminRef);
+        try {
+            const adminRef = doc(db, 'admins', user.email);
+            console.log('🔍 Checking admin status...');
+            const adminSnap = await getDoc(adminRef);
+            console.log('✅ Admin check complete. Exists:', adminSnap.exists());
 
-        if (adminSnap.exists()) {
-            toast.success('أهلاً بك أيها المشرف 🫡');
-            router.push('/admin');
-        } else {
-            toast.success('تم تسجيل الدخول بنجاح 🚀');
-            router.push('/hub');
+            if (adminSnap.exists()) {
+                toast.success('أهلاً بك أيها المشرف 🫡');
+                router.push('/admin');
+            } else {
+                toast.success('تم تسجيل الدخول بنجاح 🚀');
+                router.push('/hub');
+            }
+        } catch (error) {
+            console.error('❌ Error in handleLoginResult:', error);
+            toast.error('حدث خطأ أثناء توجيه المستخدم');
         }
     }, [router]);
 
@@ -90,6 +95,10 @@ export function AuthProvider({ children }) {
             const result = await signInWithPopup(auth, provider);
             await handleLoginResult(result);
         } catch (error) {
+            if (error.code === 'auth/popup-closed-by-user') {
+                console.log('User closed the login popup.');
+                return;
+            }
             console.error(error);
             toast.error('فشل تسجيل الدخول بقوقل');
         }
@@ -104,7 +113,7 @@ export function AuthProvider({ children }) {
             console.error(error);
         }
     }, [router]);
-    
+
     const updateMajor = useCallback(async (newMajor) => {
         if (!user || user.isAdmin) return;
         try {
@@ -113,35 +122,77 @@ export function AuthProvider({ children }) {
             setUser(prev => ({ ...prev, major: newMajor }));
             toast.success(`تم تحديث التخصص إلى ${newMajor}`);
         } catch (error) {
-            console.error("Error updating major:", error);
-            toast.error("حدث خطأ أثناء حفظ التخصص");
+            console.error('Error updating major:', error);
+            toast.error('فشل تحديث التخصص');
+        }
+    }, [user]);
+
+    const togglePin = useCallback(async (topicId) => {
+        if (!user) {
+            toast.error('يجب تسجيل الدخول لتثبيت الدرس');
+            return;
+        }
+        const { recentlyViewed = [] } = user;
+        let newRecentlyViewed;
+
+        if (recentlyViewed.includes(topicId)) {
+            // Remove topic if already pinned
+            newRecentlyViewed = recentlyViewed.filter((id) => id !== topicId);
+            toast.success('تم إلغاء تثبيت الدرس');
+        } else {
+            // Add topic if not pinned, limit to 5
+            newRecentlyViewed = [
+                topicId,
+                ...recentlyViewed.filter((id) => id !== topicId).slice(0, 4),
+            ];
+            toast.success('تم تثبيت الدرس');
+        }
+
+        try {
+            await updateDoc(doc(db, 'users', user.email), { recentlyViewed: newRecentlyViewed });
+            setUser((prev) => ({ ...prev, recentlyViewed: newRecentlyViewed }));
+        } catch (error) {
+            console.error("Error updating pinned topics:", error);
+            toast.error("فشل تحديث التثبيت");
         }
     }, [user]);
 
     const logRecentTopic = useCallback(async (topicId) => {
-        if (!user || user.isAdmin || !topicId) return;
-
-        const userRef = doc(db, 'users', user.email);
-        const currentRecents = user.recentlyViewed || [];
-        const filteredRecents = currentRecents.filter(id => id !== topicId);
-        const newRecents = [topicId, ...filteredRecents].slice(0, 5); 
-
+        if (!user || user.isAdmin) return;
         try {
-            // التحقق من وجود الملف (احتياطي لحسابات الأدمن)
-            const docSnap = await getDoc(userRef);
-            if (!docSnap.exists()) {
-                await setDoc(userRef, { email: user.email, name: user.displayName, role: user.role, recentlyViewed: newRecents }, { merge: true });
-            } else {
-                await updateDoc(userRef, { recentlyViewed: newRecents });
+            const userRef = doc(db, 'users', user.email);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                let recentlyViewed = userData.recentlyViewed || [];
+
+                // Remove if already exists to move to front
+                recentlyViewed = recentlyViewed.filter(id => id !== topicId);
+
+                // Add to front, limit to 5
+                recentlyViewed.unshift(topicId);
+                recentlyViewed = recentlyViewed.slice(0, 5);
+
+                await updateDoc(userRef, { recentlyViewed: recentlyViewed });
+                setUser(prev => ({ ...prev, recentlyViewed: recentlyViewed }));
             }
-            setUser(prev => ({ ...prev, recentlyViewed: newRecents }));
         } catch (error) {
-            console.error("Error logging recent topic:", error);
+            console.error('Error logging recent topic:', error);
         }
-    }, [user]); // يعتمد على "user"
+    }, [user]);
+
+    const value = {
+        user,
+        loading,
+        loginWithGoogle,
+        logout,
+        updateMajor,
+        logRecentTopic,
+        togglePin
+    };
 
     return (
-        <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, updateMajor, logRecentTopic }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );
@@ -149,6 +200,6 @@ export function AuthProvider({ children }) {
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (!context) return { user: null, loading: true, loginWithGoogle: () => {}, logout: () => {}, updateMajor: () => {}, logRecentTopic: () => {} };
+    if (!context) return { user: null, loading: true, loginWithGoogle: () => { }, logout: () => { }, updateMajor: () => { }, logRecentTopic: () => { }, togglePin: () => { } };
     return context;
 };

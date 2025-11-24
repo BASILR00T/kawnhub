@@ -2,140 +2,172 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; //  الخطوة 1: نستورد 'useRouter'
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, deleteDoc, doc, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore'; //  الخطوة 2: نستورد 'addDoc' و 'serverTimestamp'
+import { collection, getDocs, query, orderBy, doc, getDoc, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import toast, { Toaster } from 'react-hot-toast';
-
-// --- (Icon Components remain the same) ---
-const EditIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> );
-const DeleteIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg> );
+import { Edit, Trash2, Copy, Plus, FileText, Loader2 } from 'lucide-react';
 
 export default function TopicsPage() {
     const [topics, setTopics] = useState([]);
+    const [materials, setMaterials] = useState({}); // لتخزين أسماء المواد
     const [isLoading, setIsLoading] = useState(true);
-    const [isCreating, setIsCreating] = useState(false); //  حالة لمنع الضغط المتكرر
-    const [searchTerm, setSearchTerm] = useState('');
-    const router = useRouter(); //  نجهز الـ router
+
+    // جلب البيانات
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            // 1. جلب الشروحات
+            const topicsQ = query(collection(db, 'topics'), orderBy('updatedAt', 'desc'));
+            const topicsSnap = await getDocs(topicsQ);
+            const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // 2. جلب المواد (لربط الـ Slug بالاسم)
+            const matSnap = await getDocs(collection(db, 'materials'));
+            const matMap = {};
+            matSnap.docs.forEach(doc => {
+                const data = doc.data();
+                matMap[data.slug] = data.title;
+            });
+
+            setMaterials(matMap);
+            setTopics(topicsData);
+        } catch (error) {
+            console.error(error);
+            toast.error('فشل جلب البيانات');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const q = query(collection(db, 'topics'), orderBy('order', 'asc'));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const topicsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setTopics(topicsList);
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching topics: ", error);
-            toast.error('فشل في جلب الشروحات!');
-            setIsLoading(false);
-        });
-        return () => unsubscribe();
+        fetchData();
     }, []);
 
-    const handleDelete = async (id, title) => {
-        // ... (handleDelete logic remains the same)
-        if (window.confirm(`هل أنت متأكد أنك تريد حذف الشرح: "${title}"؟`)) {
-            const toastId = toast.loading('جاري الحذف...');
-            try {
-                await deleteDoc(doc(db, 'topics', id));
-                toast.success('تم حذف الشرح بنجاح.', { id: toastId });
-            } catch (error) {
-                console.error("Error removing topic: ", error);
-                toast.error('حدث خطأ أثناء الحذف.', { id: toastId });
-            }
-        }
-    };
+    // --- دالة التعامل مع النسخ (Client Side) ---
+    const handleDuplicate = async (id, title) => {
+        if (!confirm(`هل تريد استنساخ "${title}"؟`)) return;
+        const toastId = toast.loading('جاري استنساخ الشرح...');
 
-    //  الخطوة 3: إنشاء دالة "الإنشاء الفوري"
-    const handleCreateDraft = async () => {
-        setIsCreating(true);
-        const toastId = toast.loading('جاري إنشاء مسودة جديدة...');
-        
         try {
-            //  إنشاء مستند مسودة بقيم افتراضية
-            const timestamp = serverTimestamp();
+            // 1. جلب الشرح الأصلي
+            const originalRef = doc(db, 'topics', id);
+            const originalSnap = await getDoc(originalRef);
+
+            if (!originalSnap.exists()) {
+                throw new Error('الشرح الأصلي غير موجود');
+            }
+
+            const originalData = originalSnap.data();
+
+            // 2. تجهيز البيانات الجديدة
+            // نحذف الـ ID القديم ونحدث التواريخ
+            const { id: _, ...dataToCopy } = originalData;
+
             const newTopicData = {
-                title: "شرح جديد (مسودة)",
-                materialSlug: "", //  يتركه فارغًا ليختاره المستخدم
-                order: 99,
-                content: [],
-                tags: [],
-                createdAt: timestamp,
-                updatedAt: timestamp
+                ...dataToCopy,
+                title: `${originalData.title} (نسخة)`,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
             };
 
-            const docRef = await addDoc(collection(db, 'topics'), newTopicData);
-            
-            toast.success('تم إنشاء المسودة!', { id: toastId });
-            
-            //  الخطوة 4: التوجيه فورًا إلى صفحة التعديل
-            router.push(`/admin/topics/${docRef.id}`);
-            
+            // 3. إنشاء المستند
+            await addDoc(collection(db, 'topics'), newTopicData);
+
+            toast.success('تم استنساخ الشرح بنجاح');
+            fetchData(); // تحديث القائمة
         } catch (error) {
-            console.error("Error creating draft: ", error);
-            toast.error('فشل في إنشاء المسودة.', { id: toastId });
-            setIsCreating(false);
+            console.error("Duplicate Error:", error);
+            toast.error('فشل عملية النسخ: ' + error.message);
+        } finally {
+            toast.dismiss(toastId);
         }
     };
 
-    const filteredTopics = topics.filter(topic =>
-        (topic.title && topic.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (topic.materialSlug && topic.materialSlug.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // --- دالة التعامل مع الحذف (Client Side) ---
+    const handleDelete = async (id) => {
+        if (!confirm('هل أنت متأكد من حذف هذا الشرح؟')) return;
 
-    if (isLoading) return <p className="p-8 text-center text-text-secondary">جاري تحميل الشروحات...</p>;
+        const toastId = toast.loading('جاري الحذف...');
+        try {
+            await deleteDoc(doc(db, 'topics', id));
+            toast.success('تم حذف الشرح');
+            fetchData();
+        } catch (error) {
+            console.error("Delete Error:", error);
+            toast.error('فشل الحذف');
+        } finally {
+            toast.dismiss(toastId);
+        }
+    };
+
+    if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-primary-blue" size={32} /></div>;
 
     return (
-        <div>
+        <div className="space-y-6">
             <Toaster position="bottom-center" />
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-                <h1 className="text-3xl font-bold">إدارة الشروحات</h1>
-                <div className="flex items-center gap-4">
-                    <input 
-                        type="text" 
-                        placeholder="ابحث بالعنوان أو المادة..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="rounded-lg border border-border-color bg-surface-dark p-2 text-sm w-48 text-text-primary focus:ring-2 focus:ring-primary-blue focus:outline-none"
-                    />
-                    {/* الخطوة 5: تحويل الرابط إلى زر ذكي */}
-                    <button
-                        onClick={handleCreateDraft}
-                        disabled={isCreating}
-                        className="inline-flex items-center gap-2 rounded-lg bg-primary-blue px-4 py-2 text-sm font-bold text-white transition-transform duration-200 hover:scale-105 shadow-lg shadow-primary-blue/30 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                    >
-                        <span>{isCreating ? 'جاري الإنشاء...' : 'إضافة شرح جديد'}</span>
-                    </button>
-                </div>
+
+            <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-text-primary">إدارة الشروحات</h1>
+                <Link
+                    href="/admin/topics/new"
+                    className="flex items-center gap-2 bg-primary-blue text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-blue/90 transition-colors"
+                >
+                    <Plus size={20} /> إضافة شرح جديد
+                </Link>
             </div>
-            {/* ... (Table rendering remains the same) ... */}
-            <div className="bg-surface-dark border border-border-color rounded-lg overflow-hidden">
-                <table className="min-w-full divide-y divide-border-color">
-                    <thead className="bg-black/20"><tr className="rtl:text-right ltr:text-left">
-                        <th className="px-6 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">عنوان الشرح</th>
-                        <th className="px-6 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">المادة</th>
-                        <th className="px-6 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">الترتيب</th>
-                        <th className="px-6 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider"># الكتل</th>
-                        <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-                    </tr></thead>
+
+            <div className="bg-surface-dark border border-border-color rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-right text-sm">
+                    <thead className="bg-black/20 text-text-secondary border-b border-border-color">
+                        <tr>
+                            <th className="p-4 font-medium">عنوان الشرح</th>
+                            <th className="p-4 font-medium">المادة</th>
+                            <th className="p-4 font-medium">آخر تحديث</th>
+                            <th className="p-4 font-medium text-left">الإجراءات</th>
+                        </tr>
+                    </thead>
                     <tbody className="divide-y divide-border-color">
-                        {filteredTopics.length > 0 ? filteredTopics.map((topic) => (
-                            <tr key={topic.id} className="rtl:text-right ltr:text-left hover:bg-black/20 transition-colors">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{topic.title}</td>
-                                <td className="px-6 py-4 whitespace-nowP text-sm text-text-secondary font-mono">{topic.materialSlug}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{topic.order}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{Array.isArray(topic.content) ? topic.content.length : 0}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <div className="flex items-center justify-end gap-4">
-                                        <Link href={`/admin/topics/${topic.id}`} className="text-text-secondary hover:text-primary-blue transition-colors"><EditIcon /></Link>
-                                        <button onClick={() => handleDelete(topic.id, topic.title)} className="text-text-secondary hover:text-red-500 transition-colors"><DeleteIcon /></button>
+                        {topics.map((topic) => (
+                            <tr key={topic.id} className="hover:bg-white/5 transition group">
+                                <td className="p-4 font-bold text-text-primary flex items-center gap-2">
+                                    <FileText size={16} className="text-primary-blue" />
+                                    {topic.title}
+                                </td>
+                                <td className="p-4 text-text-secondary">
+                                    <span className="bg-primary-purple/10 text-primary-purple px-2 py-1 rounded text-xs border border-primary-purple/20">
+                                        {materials[topic.materialSlug] || topic.materialSlug}
+                                    </span>
+                                </td>
+                                <td className="p-4 text-text-secondary font-mono text-xs">
+                                    {topic.updatedAt?.toDate ? topic.updatedAt.toDate().toLocaleDateString('ar-EG') : '-'}
+                                </td>
+                                <td className="p-4">
+                                    <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Link href={`/admin/topics/${topic.id}`} className="p-2 rounded-lg text-text-secondary hover:text-primary-blue hover:bg-primary-blue/10 transition" title="تعديل">
+                                            <Edit size={16} />
+                                        </Link>
+
+                                        <button
+                                            onClick={() => handleDuplicate(topic.id, topic.title)}
+                                            className="p-2 rounded-lg text-text-secondary hover:text-green-400 hover:bg-green-500/10 transition"
+                                            title="استنساخ (Copy)"
+                                        >
+                                            <Copy size={16} />
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleDelete(topic.id)}
+                                            className="p-2 rounded-lg text-text-secondary hover:text-red-500 hover:bg-red-500/10 transition"
+                                            title="حذف"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
-                        )) : (
-                            <tr><td colSpan="5" className="text-center py-10 text-text-secondary">
-                                {searchTerm ? "لا توجد نتائج بحث مطابقة." : "لا توجد شروحات حاليًا. قم بإضافة أول شرح لك!"}
-                            </td></tr>
+                        ))}
+                        {topics.length === 0 && (
+                            <tr><td colSpan="4" className="p-12 text-center text-text-secondary">لا توجد شروحات مضافة.</td></tr>
                         )}
                     </tbody>
                 </table>

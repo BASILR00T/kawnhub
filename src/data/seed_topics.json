@@ -1,0 +1,96 @@
+[
+    {
+        "title": "Introduction to OSI Model",
+        "materialSlug": "networks-1",
+        "order": 1,
+        "tags": [
+            "OSI",
+            "Basics"
+        ],
+        "content": [
+            {
+                "type": "subheading",
+                "data": "What is the OSI Model?"
+            },
+            {
+                "type": "paragraph",
+                "data": {
+                    "ar": "نموذج OSI هو إطار مفاهيمي يستخدم لوصف وظائف نظام الشبكات.",
+                    "en": "The OSI model is a conceptual framework used to describe the functions of a networking system."
+                }
+            },
+            {
+                "type": "image",
+                "data": {
+                    "url": "/images/osi-layers.png",
+                    "caption": "The 7 Layers of OSI"
+                }
+            },
+            {
+                "type": "note",
+                "data": {
+                    "ar": "تذكر: الطبقة الفيزيائية هي الطبقة رقم 1.",
+                    "en": "Remember: Physical Layer is Layer 1."
+                }
+            }
+        ]
+    },
+    {
+        "title": "Process vs Thread",
+        "materialSlug": "os-1",
+        "order": 1,
+        "tags": [
+            "Process",
+            "Thread"
+        ],
+        "content": [
+            {
+                "type": "subheading",
+                "data": "الفرق الجوهري"
+            },
+            {
+                "type": "paragraph",
+                "data": {
+                    "ar": "العملية (Process) هي برنامج قيد التنفيذ، بينما الخيط (Thread) هو وحدة أصغر داخل العملية.",
+                    "en": "A Process is a program in execution, while a Thread is a smaller unit within a process."
+                }
+            },
+            {
+                "type": "code",
+                "data": {
+                    "language": "c",
+                    "code": "pthread_create(&thread_id, NULL, myThreadFun, NULL);"
+                }
+            }
+        ]
+    },
+    {
+        "title": "Variables & Data Types",
+        "materialSlug": "programming-1",
+        "order": 1,
+        "tags": [
+            "Basics",
+            "Python"
+        ],
+        "content": [
+            {
+                "type": "subheading",
+                "data": "Variables in Python"
+            },
+            {
+                "type": "code",
+                "data": {
+                    "language": "python",
+                    "code": "x = 5\ny = 'Hello'\nprint(x, y)"
+                }
+            },
+            {
+                "type": "paragraph",
+                "data": {
+                    "ar": "في بايثون، لا تحتاج لتعريف نوع المتغير مسبقاً.",
+                    "en": "In Python, you don't need to declare the variable type explicitly."
+                }
+            }
+        ]
+    }
+]
