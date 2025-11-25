@@ -14,13 +14,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const majors = [
-    { id: 'CS', name: 'علوم الحاسب', code: 'CS' },
-    { id: 'IT', name: 'تقنية المعلومات', code: 'IT' },
-    { id: 'ISE', name: 'هندسة النظم', code: 'ISE' },
-    { id: 'Common', name: 'سنة مشتركة', code: 'PYP' },
-];
-
 export default function ProfileClient() {
     const { user, updateMajor, logout } = useAuth();
     const { completedIds } = useProgress();
@@ -42,6 +35,9 @@ export default function ProfileClient() {
     // Pinned Topics State
     const [pinnedTopics, setPinnedTopics] = useState([]);
 
+    // Majors State
+    const [majorsList, setMajorsList] = useState([]);
+
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -50,6 +46,20 @@ export default function ProfileClient() {
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Fetch Majors
+    useEffect(() => {
+        const fetchMajors = async () => {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'majors'));
+                const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setMajorsList(data);
+            } catch (error) {
+                console.error("Error fetching majors:", error);
+            }
+        };
+        fetchMajors();
     }, []);
 
     // Fetch Pinned Topics
@@ -280,7 +290,7 @@ export default function ProfileClient() {
                                     className="w-full rounded-lg bg-background-dark border border-border-color p-2.5 text-sm focus:border-primary-blue outline-none"
                                 >
                                     <option value="" disabled>اختر التخصص</option>
-                                    {majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                    {majorsList.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                                 </select>
                                 <div className="flex gap-2">
                                     <button onClick={handleSaveMajor} disabled={loading} className="flex-1 bg-primary-blue text-white py-2 rounded-lg text-xs font-bold hover:bg-primary-blue/90">
@@ -294,10 +304,10 @@ export default function ProfileClient() {
                         ) : (
                             <div className="p-4 rounded-xl bg-gradient-to-br from-primary-purple/10 to-transparent border border-primary-purple/20 text-center">
                                 <p className="text-2xl font-bold text-primary-purple mb-1">
-                                    {majors.find(m => m.id === user.major)?.name || 'غير محدد'}
+                                    {user.major || 'غير محدد'}
                                 </p>
                                 <p className="text-xs text-text-secondary uppercase tracking-widest">
-                                    {majors.find(m => m.id === user.major)?.code || 'N/A'}
+                                    {majorsList.find(m => m.name === user.major)?.code || 'N/A'}
                                 </p>
                             </div>
                         )}

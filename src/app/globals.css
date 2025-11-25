@@ -2,39 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --- Base Styles & Aurora Effect --- */
+/* --- Fonts & Base Styles --- */
 :root {
-  --background-dark: #0a0a0f;
-  --surface-dark: rgba(22, 27, 34, 0.6);
-  --primary-blue: #388bfd;
-  --primary-purple: #8A2BE2;
-  --text-primary: #f0f6fc;
-  --text-secondary: #8b949e;
-  --border-color: rgba(255, 255, 255, 0.1);
+  --background-dark: #050507;
+  /* Deeper black */
+  --surface-dark: rgba(20, 20, 25, 0.7);
+  /* Slightly more opaque */
+  --surface-light: rgba(255, 255, 255, 0.03);
+  --primary-blue: #3b82f6;
+  /* Tailwind blue-500 for better vibrancy */
+  --primary-purple: #8b5cf6;
+  /* Tailwind violet-500 */
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  /* Tailwind gray-400 */
+  --border-color: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.05);
 }
 
 body {
   color: var(--text-primary);
   background: var(--background-dark);
+  font-family: var(--font-inter), sans-serif;
+  /* Use Next.js font variable */
   overflow-x: hidden;
 }
 
+/* Apply Cairo to Arabic text specifically if possible, or generally if mixed */
+[dir="rtl"],
+.font-arabic {
+  font-family: var(--font-cairo), sans-serif;
+  /* Use Next.js font variable */
+}
+
+/* --- Aurora Background Effect --- */
 body::before {
   content: '';
   position: fixed;
-  top: 0; 
-  left: 0; 
-  right: 0; 
+  top: 0;
+  left: 0;
+  right: 0;
   bottom: 0;
-  background: 
-      radial-gradient(circle at 15% 25%, rgba(56, 139, 253, 0.15), transparent 40%),
-      radial-gradient(circle at 85% 65%, rgba(138, 43, 226, 0.15), transparent 40%);
-  filter: blur(75px);
+  background:
+    radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08), transparent 40%),
+    radial-gradient(circle at 90% 60%, rgba(139, 92, 246, 0.08), transparent 40%);
+  filter: blur(80px);
   z-index: -1;
-  animation: move-glow 25s infinite alternate ease-in-out;
+  animation: move-glow 30s infinite alternate ease-in-out;
 }
 
 @keyframes move-glow {
-  from { transform: translate(-20%, 10%) scale(1); }
-  to { transform: translate(20%, -10%) scale(1.2); }
+  from {
+    transform: translate(-10%, 5%) scale(1);
+  }
+
+  to {
+    transform: translate(10%, -5%) scale(1.1);
+  }
+}
+
+/* --- Custom Scrollbar --- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }

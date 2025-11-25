@@ -1,8 +1,9 @@
 import './globals.css';
-import { AuthProvider } from '@/context/AuthContext'; // استيراد ملف السياق الجديد
-import { Cairo } from 'next/font/google';
+import { AuthProvider } from '@/context/AuthContext';
+import { Cairo, Inter } from 'next/font/google';
 
-const cairo = Cairo({ subsets: ['arabic'] });
+const cairo = Cairo({ subsets: ['arabic'], variable: '--font-cairo' });
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata = {
   title: 'KawnHub v2.0',
@@ -12,8 +13,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="ar" dir="rtl">
-      <body className={`${cairo.className} bg-background-dark text-text-primary`}>
-        {/* تغليف التطبيق بالكامل بالمزود */}
+      <body className={`${cairo.variable} ${inter.variable} font-sans bg-background-dark text-text-primary`}>
         <AuthProvider>
           {children}
         </AuthProvider>

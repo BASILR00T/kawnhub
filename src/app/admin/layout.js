@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect } from 'react';
-import { LayoutDashboard, Folder, Hash, FileText, Users, LogOut, Loader2, Globe, Inbox } from 'lucide-react';
+import { LayoutDashboard, Folder, Hash, FileText, Users, LogOut, Loader2, Globe, Inbox, GraduationCap } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 
 export default function AdminLayout({ children }) {
@@ -48,8 +48,9 @@ export default function AdminLayout({ children }) {
     { name: 'لوحة التحكم', href: '/admin', icon: LayoutDashboard },
     { name: 'المواد', href: '/admin/materials', icon: Folder },
     { name: 'الشروحات', href: '/admin/topics', icon: FileText },
+    { name: 'التخصصات', href: '/admin/majors', icon: GraduationCap },
     { name: 'الوسوم', href: '/admin/tags', icon: Hash },
-    { name: 'الرسائل', href: '/admin/messages', icon: Inbox }, 
+    { name: 'الرسائل', href: '/admin/messages', icon: Inbox },
   ];
 
   return (
@@ -93,9 +94,9 @@ export default function AdminLayout({ children }) {
 
         <div className="mt-auto border-t border-border-color pt-4">
           <div className="mb-4 px-2 text-xs text-text-secondary">
-             مسجل كـ: <span className="font-bold text-primary-blue uppercase">{user.role}</span>
-             <br/>
-             <span className="truncate block" title={user.email}>{user.email}</span>
+            مسجل كـ: <span className="font-bold text-primary-blue uppercase">{user.role}</span>
+            <br />
+            <span className="truncate block" title={user.email}>{user.email}</span>
           </div>
           <button onClick={() => logout()} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-red-400 transition-all hover:bg-red-500/10">
             <LogOut size={20} />

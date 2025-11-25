@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import SearchDialog from './SearchDialog';
+import confetti from 'canvas-confetti';
 
 // --- BlockRenderer Component ---
 const BlockRenderer = ({ block, index, showTranslation, highlightedBlockIndex }) => {
@@ -196,6 +197,25 @@ export default function MaterialClient({ material, topics, initialTopic, allMate
             return;
         }
         togglePin(selectedTopic.id);
+    };
+
+    const handleComplete = () => {
+        if (!user) {
+            toast.error('يجب تسجيل الدخول لتحديد الدرس كمكتمل');
+            return;
+        }
+        const isNowCompleted = !completedIds.includes(selectedTopic.id);
+        toggleComplete(selectedTopic.id);
+
+        if (isNowCompleted) {
+            toast.success('أحسنت! تم إكمال الدرس 🎉');
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#388bfd', '#8A2BE2', '#ffffff']
+            });
+        }
     };
 
     return (
@@ -434,6 +454,30 @@ export default function MaterialClient({ material, topics, initialTopic, allMate
                                     highlightedBlockIndex={highlightedBlockIndex}
                                 />
                             ))}
+                        </div>
+
+                        {/* Completion Button */}
+                        <div className="mt-16 mb-8 flex justify-center">
+                            <button
+                                onClick={handleComplete}
+                                className={`group relative px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 flex items-center gap-3 overflow-hidden ${completedIds.includes(selectedTopic.id)
+                                    ? 'bg-green-500/10 text-green-500 border border-green-500/20 hover:bg-green-500/20'
+                                    : 'bg-primary-blue text-white shadow-lg shadow-primary-blue/30 hover:shadow-primary-blue/50 hover:scale-105'
+                                    }`}
+                            >
+                                {completedIds.includes(selectedTopic.id) ? (
+                                    <>
+                                        <CheckCircle size={24} className="animate-in zoom-in spin-in-90 duration-300" />
+                                        <span>تم إكمال الدرس</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                                        <CheckCircle size={24} />
+                                        <span>تحديد كمكتمل</span>
+                                    </>
+                                )}
+                            </button>
                         </div>
 
                         {/* Navigation Footer */}

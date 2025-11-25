@@ -32,16 +32,18 @@ export async function sendMessage(formData) {
   }
 
   try {
+    console.log("Attempting to write to Firestore:", validatedFields.data); // DEBUG
     // نستخدم البيانات النظيفة (validatedFields.data) فقط
-    await addDoc(collection(db, 'messages'), {
+    const docRef = await addDoc(collection(db, 'messages'), {
       ...validatedFields.data,
       createdAt: serverTimestamp(),
       read: false,
     });
+    console.log("Document written with ID: ", docRef.id); // DEBUG
 
     return { success: true, message: 'تم إرسال رسالتك بنجاح!' };
   } catch (error) {
     console.error("Support Error:", error);
-    return { success: false, message: 'حدث خطأ تقني، حاول لاحقاً.' };
+    return { success: false, message: 'حدث خطأ تقني، حاول لاحقاً: ' + error.message };
   }
 }
