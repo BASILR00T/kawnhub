@@ -4,50 +4,59 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import toast, { Toaster } from 'react-hot-toast';
 import { revalidatePublicPages } from '@/app/actions/revalidation'; // ✅ 1. استيراد الأداة
-
-const majorsList = [
-  { id: 'CS', name: 'علوم الحاسب' },
-  { id: 'IT', name: 'تقنية المعلومات' },
-  { id: 'ISE', name: 'هندسة النظم' },
-  { id: 'Common', name: 'سنة مشتركة' },
-];
 
 export default function EditMaterialPage() {
     const router = useRouter();
     const params = useParams();
     const materialId = params.id;
-    
+
     const [isLoading, setIsLoading] = useState(true);
     const [materialData, setMaterialData] = useState(null);
     const [targetMajors, setTargetMajors] = useState([]);
+    const [majorsList, setMajorsList] = useState([]);
 
     useEffect(() => {
-        if (!materialId) return;
-        const fetchMaterial = async () => {
-            const docRef = doc(db, 'materials', materialId);
-            const docSnap = await getDoc(docRef);
+        const fetchData = async () => {
+            if (!materialId) return;
+            setIsLoading(true);
+            try {
+                // Fetch Material
+                const docRef = doc(db, 'materials', materialId);
+                const docSnap = await getDoc(docRef);
 
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                setMaterialData(data);
-                setTargetMajors(data.targetMajors || []);
-            } else {
-                toast.error("المادة غير موجودة!");
-                router.push('/admin/materials');
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setMaterialData(data);
+                    setTargetMajors(data.targetMajors || []);
+                } else {
+                    toast.error("المادة غير موجودة!");
+                    router.push('/admin/materials');
+                    return;
+                }
+
+                // Fetch Majors
+                const majorsSnap = await getDocs(collection(db, 'majors'));
+                const majors = majorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setMajorsList(majors);
+
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                toast.error("حدث خطأ أثناء تحميل البيانات");
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
-        fetchMaterial();
+        fetchData();
     }, [materialId, router]);
 
-    const handleMajorsChange = (majorId) => {
-        setTargetMajors((prev) => 
-            prev.includes(majorId) 
-              ? prev.filter(m => m !== majorId)
-              : [...prev, majorId]
+    const handleMajorsChange = (majorName) => {
+        setTargetMajors((prev) =>
+            prev.includes(majorName)
+                ? prev.filter(m => m !== majorName)
+                : [...prev, majorName]
         );
     };
 
@@ -73,10 +82,10 @@ export default function EditMaterialPage() {
             const docRef = doc(db, 'materials', materialId);
             await updateDoc(docRef, updatedMaterial);
             toast.success('تم تحديث المادة بنجاح!');
-            
+
             // ✅ 2. استدعاء أداة تحديث الكاش
-            await revalidatePublicPages(); 
-            
+            await revalidatePublicPages();
+
             router.push('/admin/materials');
         } catch (error) {
             console.error("Error updating document: ", error);
@@ -86,7 +95,7 @@ export default function EditMaterialPage() {
     };
 
     if (isLoading || !materialData) {
-        return <p>جاري تحميل بيانات المادة...</p>;
+        return <div className="flex justify-center items-center h-64"><p>جاري تحميل البيانات...</p></div>;
     }
 
     return (
@@ -101,12 +110,16 @@ export default function EditMaterialPage() {
                 <div className="pt-4 border-t border-border-color">
                     <label className="block text-sm font-medium text-text-secondary mb-3">التخصصات المستهدفة</label>
                     <div className="flex flex-wrap gap-4">
-                        {majorsList.map((major) => (
-                            <label key={major.id} className="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-border-color bg-surface-dark">
-                                <input type="checkbox" name="targetMajors" value={major.id} checked={targetMajors.includes(major.id)} onChange={() => handleMajorsChange(major.id)} className="h-4 w-4 rounded text-primary-blue bg-background-dark border-border-color focus:ring-primary-blue" />
-                                <span className="font-medium">{major.name}</span>
-                            </label>
-                        ))}
+                        {majorsList.length > 0 ? (
+                            majorsList.map((major) => (
+                                <label key={major.id} className="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-border-color bg-surface-dark">
+                                    <input type="checkbox" name="targetMajors" value={major.name} checked={targetMajors.includes(major.name)} onChange={() => handleMajorsChange(major.name)} className="h-4 w-4 rounded text-primary-blue bg-background-dark border-border-color focus:ring-primary-blue" />
+                                    <span className="font-medium">{major.name}</span>
+                                </label>
+                            ))
+                        ) : (
+                            <p className="text-text-secondary text-sm">جاري تحميل التخصصات...</p>
+                        )}
                     </div>
                 </div>
                 <div> <label htmlFor="descriptionEn" className="block text-sm font-medium text-text-secondary mb-2">الوصف (EN)</label> <textarea id="descriptionEn" name="descriptionEn" defaultValue={materialData.description.en} rows="3" className="w-full rounded-lg border border-border-color bg-surface-dark p-3"></textarea> </div>

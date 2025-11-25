@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect } from 'react';
-import { LayoutDashboard, Folder, Hash, FileText, Users, LogOut, Loader2, Globe, Inbox, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, Folder, Hash, FileText, Users, LogOut, Loader2, Globe, Inbox, GraduationCap, Database } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 
 export default function AdminLayout({ children }) {
@@ -23,8 +23,8 @@ export default function AdminLayout({ children }) {
       return;
     }
 
-    // 3. (الشرط الجديد) إذا كان مسجلاً لكنه ليس أدمن أو مشرف -> طرد للمنصة
-    if (user.role !== 'admin' && user.role !== 'editor') {
+    // 3. (الشرط الجديد) إذا كان مسجلاً لكنه ليس أدمن أو مشرف أو مالك -> طرد للمنصة
+    if (user.role !== 'admin' && user.role !== 'editor' && user.role !== 'owner') {
       toast.error('عذراً، هذه المنطقة للمشرفين فقط!');
       router.push('/hub');
     }
@@ -35,7 +35,7 @@ export default function AdminLayout({ children }) {
   // 1. جاري التحقق (loading)
   // 2. المستخدم غير موجود
   // 3. المستخدم موجود لكنه ليس أدمن (كي لا يرى المحتوى ولو لثانية قبل الطرد)
-  if (loading || !user || (user.role !== 'admin' && user.role !== 'editor')) {
+  if (loading || !user || (user.role !== 'admin' && user.role !== 'editor' && user.role !== 'owner')) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background-dark text-primary-blue">
         <Loader2 className="animate-spin" size={48} />
@@ -43,7 +43,7 @@ export default function AdminLayout({ children }) {
     );
   }
 
-  // --- القائمة والمحتوى (يظهر فقط للأدمن/المشرف) ---
+  // --- القائمة والمحتوى (يظهر فقط للأدمن/المشرف/المالك) ---
   const navItems = [
     { name: 'لوحة التحكم', href: '/admin', icon: LayoutDashboard },
     { name: 'المواد', href: '/admin/materials', icon: Folder },
@@ -81,7 +81,7 @@ export default function AdminLayout({ children }) {
             );
           })}
 
-          {user.role === 'admin' && (
+          {(user.role === 'admin' || user.role === 'owner') && (
             <>
               <div className="my-2 h-px bg-border-color mx-2 opacity-50"></div>
               <Link href="/admin/users" className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${pathname === '/admin/users' ? 'bg-primary-purple/20 text-primary-purple' : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'}`}>
@@ -90,11 +90,18 @@ export default function AdminLayout({ children }) {
               </Link>
             </>
           )}
+
+          {user.role === 'owner' && (
+            <Link href="/admin/seed" className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${pathname === '/admin/seed' ? 'bg-red-500/20 text-red-500' : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'}`}>
+              <Database size={20} />
+              <span className="font-medium">أدوات النظام</span>
+            </Link>
+          )}
         </nav>
 
         <div className="mt-auto border-t border-border-color pt-4">
           <div className="mb-4 px-2 text-xs text-text-secondary">
-            مسجل كـ: <span className="font-bold text-primary-blue uppercase">{user.role}</span>
+            مسجل كـ: <span className="font-bold text-primary-blue uppercase">{user.role === 'owner' ? 'المالك' : user.role}</span>
             <br />
             <span className="truncate block" title={user.email}>{user.email}</span>
           </div>

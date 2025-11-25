@@ -1,30 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import toast, { Toaster } from 'react-hot-toast';
 import { revalidatePublicPages } from '@/app/actions/revalidation'; // ✅ 1. استيراد الأداة
-
-const majorsList = [
-  { id: 'CS', name: 'علوم الحاسب' },
-  { id: 'IT', name: 'تقنية المعلومات' },
-  { id: 'ISE', name: 'هندسة النظم' },
-  { id: 'Common', name: 'سنة مشتركة' },
-];
 
 export default function NewMaterialPage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
     const [targetMajors, setTargetMajors] = useState([]);
+    const [majorsList, setMajorsList] = useState([]);
 
-    const handleMajorsChange = (majorId) => {
-        setTargetMajors((prev) => 
-            prev.includes(majorId) 
-              ? prev.filter(m => m !== majorId)
-              : [...prev, majorId]
+    useEffect(() => {
+        const fetchMajors = async () => {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'majors'));
+                const majors = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setMajorsList(majors);
+            } catch (error) {
+                console.error("Error fetching majors:", error);
+                toast.error("فشل تحميل قائمة التخصصات");
+            }
+        };
+        fetchMajors();
+    }, []);
+
+    const handleMajorsChange = (majorName) => {
+        setTargetMajors((prev) =>
+            prev.includes(majorName)
+                ? prev.filter(m => m !== majorName)
+                : [...prev, majorName]
         );
     };
 
@@ -50,9 +58,9 @@ export default function NewMaterialPage() {
         try {
             await addDoc(collection(db, 'materials'), newMaterial);
             toast.success('تم إنشاء المادة بنجاح!');
-            
+
             // ✅ 2. استدعاء أداة تحديث الكاش
-            await revalidatePublicPages(); 
+            await revalidatePublicPages();
 
             router.push('/admin/materials');
         } catch (error) {
@@ -74,12 +82,16 @@ export default function NewMaterialPage() {
                 <div className="pt-4 border-t border-border-color">
                     <label className="block text-sm font-medium text-text-secondary mb-3">التخصصات المستهدفة</label>
                     <div className="flex flex-wrap gap-4">
-                        {majorsList.map((major) => (
-                            <label key={major.id} className="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-border-color bg-surface-dark">
-                                <input type="checkbox" name="targetMajors" value={major.id} checked={targetMajors.includes(major.id)} onChange={() => handleMajorsChange(major.id)} className="h-4 w-4 rounded text-primary-blue bg-background-dark border-border-color focus:ring-primary-blue" />
-                                <span className="font-medium">{major.name}</span>
-                            </label>
-                        ))}
+                        {majorsList.length > 0 ? (
+                            majorsList.map((major) => (
+                                <label key={major.id} className="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-border-color bg-surface-dark">
+                                    <input type="checkbox" name="targetMajors" value={major.name} checked={targetMajors.includes(major.name)} onChange={() => handleMajorsChange(major.name)} className="h-4 w-4 rounded text-primary-blue bg-background-dark border-border-color focus:ring-primary-blue" />
+                                    <span className="font-medium">{major.name}</span>
+                                </label>
+                            ))
+                        ) : (
+                            <p className="text-text-secondary text-sm">جاري تحميل التخصصات...</p>
+                        )}
                     </div>
                 </div>
                 <div> <label htmlFor="descriptionEn" className="block text-sm font-medium text-text-secondary mb-2">الوصف (EN)</label> <textarea id="descriptionEn" name="descriptionEn" rows="3" className="w-full rounded-lg border border-border-color bg-surface-dark p-3"></textarea> </div>

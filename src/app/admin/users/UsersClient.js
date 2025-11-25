@@ -8,7 +8,7 @@ import { collection, getDocs, getDoc, setDoc, deleteDoc, updateDoc, doc, serverT
 import toast from 'react-hot-toast';
 import {
     Trash2, UserPlus, Shield, ShieldAlert, GraduationCap, Loader2,
-    Search, Edit, X, Save
+    Search, Edit, X, Save, Crown
 } from 'lucide-react';
 
 export default function UsersClient() {
@@ -89,7 +89,7 @@ export default function UsersClient() {
         try {
             // 1. تحديث القائمة البيضاء (Admins)
             const adminRef = doc(db, 'admins', email);
-            if (role === 'admin' || role === 'editor') {
+            if (role === 'admin' || role === 'editor' || role === 'owner') {
                 await setDoc(adminRef, { email, role });
             } else {
                 // إذا كان المستند غير موجود، deleteDoc لن يسبب خطأ
@@ -157,6 +157,7 @@ export default function UsersClient() {
 
     const getRoleBadge = (role) => {
         switch (role) {
+            case 'owner': return <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-yellow-500/10 text-yellow-500 text-xs font-bold"><Crown size={12} /> المالك</span>;
             case 'admin': return <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-500/10 text-red-500 text-xs font-bold"><ShieldAlert size={12} /> مدير</span>;
             case 'editor': return <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-500/10 text-blue-500 text-xs font-bold"><Shield size={12} /> مشرف</span>;
             default: return <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-500/10 text-green-500 text-xs font-bold"><GraduationCap size={12} /> طالب</span>;
@@ -275,8 +276,8 @@ export default function UsersClient() {
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="grid grid-cols-3 gap-2">
-                                    {['student', 'editor', 'admin'].map((role) => (
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['owner', 'admin', 'editor', 'student'].map((role) => (
                                         <label key={role} className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${editingUser.role === role ? 'border-primary-blue bg-primary-blue/10 text-primary-blue' : 'border-border-color hover:border-primary-blue/50'}`}>
                                             <input
                                                 type="radio"
@@ -286,14 +287,16 @@ export default function UsersClient() {
                                                 onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
                                                 className="hidden"
                                             />
+                                            {role === 'owner' && <Crown size={20} />}
                                             {role === 'admin' && <ShieldAlert size={20} />}
                                             {role === 'editor' && <Shield size={20} />}
                                             {role === 'student' && <GraduationCap size={20} />}
-                                            <span className="text-xs font-bold uppercase">{role}</span>
+                                            <span className="text-xs font-bold uppercase">{role === 'owner' ? 'المالك' : role}</span>
                                         </label>
                                     ))}
                                 </div>
                                 <p className="text-[10px] text-text-secondary mt-2 text-center">
+                                    {editingUser.role === 'owner' && 'صلاحيات مطلقة + أدوات النظام.'}
                                     {editingUser.role === 'admin' && 'صلاحيات كاملة + الوصول للوحة التحكم.'}
                                     {editingUser.role === 'editor' && 'تعديل المحتوى فقط + الوصول للوحة التحكم.'}
                                     {editingUser.role === 'student' && 'تصفح فقط (بدون لوحة تحكم).'}

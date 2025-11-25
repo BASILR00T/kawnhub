@@ -1,61 +1,90 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, limit, doc, getDoc } from 'firebase/firestore'; //  الخطوة 1: نستورد 'doc' و 'getDoc'
+import { collection, getDocs, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 
 // --- Icon for Edit Button ---
 const EditIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>);
 
-// --- Data Fetching Functions ---
-async function getStats() {
-    try {
-        //  الخطوة 2: نجلب كل الإحصائيات معًا
-        const materialsSnapshot = await getDocs(collection(db, 'materials'));
-        const topicsSnapshot = await getDocs(collection(db, 'topics'));
-        const usersSnapshot = await getDocs(collection(db, 'users'));
-        const messagesSnapshot = await getDocs(collection(db, 'messages'));
-        const visitDoc = await getDoc(doc(db, 'stats', 'visits'));
+export default function AdminDashboard() {
+    const [stats, setStats] = useState({
+        materialsCount: 0,
+        topicsCount: 0,
+        usersCount: 0,
+        messagesCount: 0,
+        visitsCount: 0
+    });
+    const [recentTopics, setRecentTopics] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-        return {
-            materialsCount: materialsSnapshot.size,
-            topicsCount: topicsSnapshot.size,
-            usersCount: usersSnapshot.size,
-            messagesCount: messagesSnapshot.size,
-            visitsCount: visitDoc.exists() ? visitDoc.data().count : 0
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // 1. Fetch Stats
+                const materialsSnapshot = await getDocs(collection(db, 'materials'));
+                const topicsSnapshot = await getDocs(collection(db, 'topics'));
+                const usersSnapshot = await getDocs(collection(db, 'users'));
+                const messagesSnapshot = await getDocs(collection(db, 'messages'));
+                const visitDoc = await getDoc(doc(db, 'stats', 'visits'));
+
+                setStats({
+                    materialsCount: materialsSnapshot.size,
+                    topicsCount: topicsSnapshot.size,
+                    usersCount: usersSnapshot.size,
+                    messagesCount: messagesSnapshot.size,
+                    visitsCount: visitDoc.exists() ? visitDoc.data().count : 0
+                });
+
+                // 2. Fetch Recent Topics
+                const topicsCol = collection(db, 'topics');
+                // Use createdAt if available, otherwise fallback to order or default
+                // Note: Ensure you have an index for createdAt desc if using it. 
+                // For now, we'll stick to 'order' as per previous code, or try 'createdAt' if you added it.
+                // Let's use 'createdAt' as it's more appropriate for "Recent", but fallback to no sort if index missing?
+                // The previous code used orderBy('order', 'desc'). Let's stick to that to avoid index errors for now, 
+                // or better, fetch all and sort client side if list is small (which it is for now).
+                // Actually, let's try orderBy('createdAt', 'desc') but wrap in try-catch specifically.
+
+                let q = query(topicsCol, orderBy('createdAt', 'desc'), limit(5));
+                try {
+                    const snapshot = await getDocs(q);
+                    setRecentTopics(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                } catch (indexError) {
+                    console.warn("Index missing for createdAt, falling back to client sort");
+                    const snapshot = await getDocs(query(topicsCol, limit(20))); // Fetch a few
+                    const sorted = snapshot.docs
+                        .map(doc => ({ id: doc.id, ...doc.data() }))
+                        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+                        .slice(0, 5);
+                    setRecentTopics(sorted);
+                }
+
+            } catch (error) {
+                console.error("Error fetching dashboard data: ", error);
+            } finally {
+                setLoading(false);
+            }
         };
-    } catch (error) {
-        console.error("Error fetching stats: ", error);
-        return { materialsCount: 0, topicsCount: 0, usersCount: 0, messagesCount: 0, visitsCount: 0 };
+
+        fetchData();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex h-64 w-full items-center justify-center text-primary-blue">
+                <Loader2 className="animate-spin" size={48} />
+            </div>
+        );
     }
-}
-
-async function getRecentTopics() {
-    try {
-        const topicsCol = collection(db, 'topics');
-        //  ملاحظة: سنقوم بتحديث هذا ليقرأ 'createdAt' لترتيب أدق
-        const q = query(topicsCol, orderBy('order', 'desc'), limit(5));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-        console.error("Error fetching recent topics: ", error);
-        return [];
-    }
-}
-
-
-export default async function AdminDashboard() {
-
-    // نجلب الإحصائيات وآخر الشروحات في نفس الوقت
-    const [stats, recentTopics] = await Promise.all([
-        getStats(),
-        getRecentTopics()
-    ]);
 
     return (
         <div>
             <h1 className="text-3xl font-bold mb-6">أهلاً بك في لوحة تحكم KawnHub</h1>
             <p className="text-text-secondary mb-8">من هنا تقدر تدير كل محتوى المنصة.</p>
 
-            {/* Stats Cards */}
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <div className="bg-surface-dark p-6 rounded-2xl border border-border-color hover:border-primary-blue/50 transition-colors group">

@@ -1,17 +1,34 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, doc, setDoc, writeBatch, getDocs } from 'firebase/firestore';
 import toast, { Toaster } from 'react-hot-toast';
-import { Database, Upload, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Database, Upload, CheckCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 import materialsData from '@/data/seed_materials.json';
 import topicsData from '@/data/seed_topics.json';
 import migratedTopics from '@/data/migrated_topics.json';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
 
-export default function SeedPage() {
+export default function LegacyToolsPage() {
+    const { user, loading } = useAuth();
+    const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
     const [log, setLog] = useState([]);
+
+    // --- 🔥 حماية الصفحة: للمالك فقط 🔥 ---
+    useEffect(() => {
+        if (loading) return;
+        if (!user || user.role !== 'owner') {
+            toast.error('عذراً، هذه الصفحة للمالك فقط!');
+            router.push('/admin');
+        }
+    }, [user, loading, router]);
+
+    if (loading || !user || user.role !== 'owner') {
+        return <div className="p-8 text-center">جاري التحقق من الصلاحيات...</div>;
+    }
 
     const addLog = (msg) => setLog(prev => [...prev, msg]);
 
@@ -160,12 +177,12 @@ export default function SeedPage() {
             <Toaster position="bottom-center" />
 
             <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-primary-blue/10 rounded-xl text-primary-blue">
-                    <Database size={32} />
+                <div className="p-3 bg-red-500/10 rounded-xl text-red-500">
+                    <ShieldAlert size={32} />
                 </div>
                 <div>
-                    <h1 className="text-3xl font-bold text-text-primary">أداة استيراد البيانات</h1>
-                    <p className="text-text-secondary">إدارة البيانات الأولية ونقل المحتوى القديم.</p>
+                    <h1 className="text-3xl font-bold text-text-primary">أدوات النظام المتقدمة</h1>
+                    <p className="text-text-secondary">منطقة محظورة: إدارة البيانات الحساسة (للمالك فقط).</p>
                 </div>
             </div>
 
