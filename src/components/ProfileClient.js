@@ -10,7 +10,7 @@ import { documentId, where, query, collection, getDocs, doc, getDoc } from 'fire
 import {
     User, Mail, GraduationCap, Calendar, Save, Edit2,
     BookOpen, Star, Clock, Settings, CheckCircle, Bookmark,
-    LogOut, ChevronDown, HelpCircle, ArrowRight, Search, Filter, Grid, List, Pin
+    LogOut, ChevronDown, HelpCircle, ArrowRight, Search, Filter, Grid, List, Pin, LayoutDashboard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -190,6 +190,11 @@ export default function ProfileClient() {
                     <div className="hidden md:flex items-center gap-6">
                         <Link href="/hub" className="text-text-secondary transition-colors hover:text-text-primary font-medium">المنصة</Link>
                         <Link href="/lab" className="hidden sm:block text-text-secondary transition-colors hover:text-text-primary font-medium">المختبر 🧪</Link>
+                        {(user?.role === 'admin' || user?.role === 'editor' || user?.role === 'owner') && (
+                            <Link href="/admin" className="text-primary-purple hover:text-white transition-colors flex items-center gap-1 text-sm font-bold bg-primary-purple/10 px-3 py-1.5 rounded-lg border border-primary-purple/20">
+                                <LayoutDashboard size={16} /> <span>الإدارة</span>
+                            </Link>
+                        )}
                         <Link href="/support" className="text-text-secondary hover:text-primary-blue transition-colors" title="المساعدة"><HelpCircle size={20} /></Link>
                     </div>
 
@@ -213,6 +218,11 @@ export default function ProfileClient() {
                                     <p className="text-sm font-bold text-text-primary truncate">{user.name}</p>
                                     <p className="text-xs text-text-secondary truncate font-mono mt-0.5">{user.email}</p>
                                 </div>
+                                {(user?.role === 'admin' || user?.role === 'editor' || user?.role === 'owner') && (
+                                    <Link href="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-primary-purple hover:bg-primary-purple/10 transition-colors mx-2 rounded-lg">
+                                        <LayoutDashboard size={16} /> <span>لوحة التحكم</span>
+                                    </Link>
+                                )}
                                 <Link href="/hub" className="flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue mx-2 rounded-lg">
                                     <BookOpen size={16} />
                                     <span>تصفح المواد</span>
@@ -250,7 +260,7 @@ export default function ProfileClient() {
                             <span className="flex items-center gap-1"><Mail size={14} /> {user.email}</span>
                             <span className="flex items-center gap-1"><Calendar size={14} /> انضممت في {user.createdAt?.toDate ? user.createdAt.toDate().toLocaleDateString('ar-EG') : '...'}</span>
                             <span className="px-2 py-0.5 rounded-md bg-primary-blue/10 text-primary-blue text-xs font-bold border border-primary-blue/20">
-                                {user.role === 'admin' ? 'مشرف النظام' : 'طالب نشيط'}
+                                {user.role === 'owner' ? 'المالك' : user.role === 'admin' ? 'مشرف النظام' : user.role === 'editor' ? 'محرر' : 'طالب نشيط'}
                             </span>
                         </div>
                     </div>

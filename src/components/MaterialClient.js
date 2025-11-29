@@ -1,4 +1,5 @@
 'use client';
+// Force recompile
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
@@ -11,18 +12,100 @@ import toast, { Toaster } from 'react-hot-toast';
 import {
     Copy, Bookmark, Share2, Clock, Pin,
     LayoutDashboard, HelpCircle, LogIn, LogOut, User, ChevronDown, ArrowRight,
-    CheckCircle, Circle, Maximize2, Minimize2, Search
+    CheckCircle, Circle, Maximize2, Minimize2, Search, Terminal
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import SearchDialog from './SearchDialog';
 import confetti from 'canvas-confetti';
 
+// Helper to group terminal blocks
+const processContentBlocks = (blocks) => {
+    if (!blocks) return [];
+    const processed = [];
+    let currentGroup = null;
+
+    for (const block of blocks) {
+        if (block.type === 'terminal_command' || block.type === 'terminal_output') {
+            if (!currentGroup) {
+                // Determine style from the first command block (if available)
+                let groupStyle = 'linux'; // Default
+                if (block.type === 'terminal_command') {
+                    if (typeof block.data === 'object' && block.data.style) {
+                        groupStyle = block.data.style;
+                    }
+                }
+
+                currentGroup = {
+                    type: 'terminal_group',
+                    style: groupStyle,
+                    data: []
+                };
+                processed.push(currentGroup);
+            }
+            // Update style if a subsequent command has a specific style (optional, usually consistent)
+            if (block.type === 'terminal_command' && typeof block.data === 'object' && block.data.style) {
+                currentGroup.style = block.data.style;
+            }
+
+            currentGroup.data.push(block);
+        } else {
+            currentGroup = null;
+            processed.push(block);
+        }
+    }
+    return processed;
+};
+
 // --- BlockRenderer Component ---
 const BlockRenderer = ({ block, index, showTranslation, highlightedBlockIndex }) => {
+    // Helper to clean command output (remove prompts and comments)
+    const cleanCommandOutput = (text) => {
+        if (!text) return '';
+        const lines = text.split('\n');
+        const commands = [];
+
+        // Regex for prompts:
+        // [root@...] or [user@...] followed by # or $
+        // Switch> or Router#
+        // C:\...>
+        const promptRegex = /^(\[.*?\][#$]|[\w-]+[>#]|[A-Z]:\\.*>)\s*(.*)/;
+
+        let hasPrompt = false;
+
+        for (const line of lines) {
+            const match = line.match(promptRegex);
+            if (match) {
+                hasPrompt = true;
+                let cmd = match[2];
+
+                // Remove comments (starting with " #")
+                const commentIndex = cmd.indexOf(' #');
+                if (commentIndex !== -1) {
+                    cmd = cmd.substring(0, commentIndex);
+                }
+
+                cmd = cmd.trim();
+                if (cmd) commands.push(cmd);
+            }
+        }
+
+        // If no prompts were found, return original text (it might be just a list of commands)
+        if (!hasPrompt) return text;
+
+        return commands.join('\n');
+    };
+
     const handleCopy = (code) => {
-        navigator.clipboard.writeText(code);
+        const cleanCode = cleanCommandOutput(code);
+        navigator.clipboard.writeText(cleanCode);
         toast.success('تم نسخ الأمر بنجاح!');
     };
+
+    const handleRawCopy = (text) => {
+        navigator.clipboard.writeText(text);
+        toast.success('تم نسخ الأمر بنجاح!');
+    };
+
     const sanitize = (html) => DOMPurify.sanitize(html);
 
     // Helper for bilingual text
@@ -66,13 +149,139 @@ const BlockRenderer = ({ block, index, showTranslation, highlightedBlockIndex })
             );
         case 'paragraph':
             return <div {...commonProps} className={`text-lg text-text-secondary my-4 leading-relaxed ${highlightClass}`}>{renderText(block.data)}</div>;
+
+        case 'terminal_group':
+            // Extract only commands for Copy/Run
+            const rawCommands = block.data
+                .filter(b => b.type === 'terminal_command')
+                .map(b => typeof b.data === 'object' ? b.data.cmd : b.data)
+                .join('\n');
+
+            // Determine styles based on group style
+            const style = block.style || 'linux';
+            let containerClass = "bg-black border-gray-700"; // Linux default (matched to Admin)
+            let prompt = "$";
+            let promptClass = "text-green-400";
+            let cmdClass = "text-gray-100";
+            let outputClass = "text-gray-400";
+            let headerTitle = "Terminal";
+            let isWindows = false;
+
+            if (style === 'cmd') {
+                containerClass = "bg-black border-gray-600";
+                prompt = ">";
+                promptClass = "text-gray-100";
+                cmdClass = "text-gray-100";
+                outputClass = "text-gray-300";
+                headerTitle = "Command Prompt";
+                isWindows = true;
+            } else if (style === 'powershell') {
+                containerClass = "bg-[#012456] border-blue-800";
+                prompt = "PS>";
+                promptClass = "text-white";
+                cmdClass = "text-yellow-200";
+                outputClass = "text-gray-200";
+                headerTitle = "Administrator: Windows PowerShell";
+                isWindows = true;
+            } else if (style === 'cisco') {
+                containerClass = "bg-black border-gray-700";
+                prompt = "#";
+                promptClass = "text-gray-300";
+                cmdClass = "text-white font-bold";
+                outputClass = "text-gray-300";
+                headerTitle = "Cisco IOS";
+                isWindows = false;
+            }
+
+            return (
+                <div {...commonProps} className={`not-prose my-8 relative group rounded-lg overflow-hidden border shadow-2xl w-full text-left direction-ltr ${containerClass}`} dir="ltr">
+                    {/* Terminal Header */}
+                    <div className={`flex items-center justify-between px-4 py-2 ${isWindows ? 'bg-white text-black h-8' : 'bg-[#333] text-gray-300 h-8 border-b border-gray-600'}`}>
+                        <div className="flex items-center gap-2">
+                            {isWindows ? (
+                                <div className="text-xs font-sans select-none font-bold">{headerTitle}</div>
+                            ) : (
+                                <>
+                                    <Terminal size={12} className="text-gray-400" />
+                                    <div className="text-xs font-mono select-none">{headerTitle}</div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Window Controls */}
+                        <div className="flex items-center gap-3 opacity-70">
+                            {isWindows ? (
+                                <>
+                                    <div className="w-3 h-0.5 bg-black/50"></div> {/* Minimize */}
+                                    <div className="w-3 h-3 border border-black/50"></div> {/* Maximize */}
+                                    <div className="text-sm leading-none font-bold text-black/50">✕</div> {/* Close */}
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-gray-500/50"></div>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-gray-500/50"></div>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-gray-500/50"></div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Terminal Content */}
+                    <div className="p-4 font-mono text-sm overflow-x-auto custom-scrollbar" style={{ direction: 'ltr', textAlign: 'left' }}>
+                        {block.data.map((subBlock, i) => {
+                            const content = typeof subBlock.data === 'object' ? subBlock.data.cmd : subBlock.data;
+                            if (subBlock.type === 'terminal_command') {
+                                return (
+                                    <div key={i} className="flex gap-2 mb-1">
+                                        <span className={`select-none shrink-0 ${promptClass}`}>{prompt}</span>
+                                        <span className={cmdClass}>{content}</span>
+                                    </div>
+                                );
+                            } else {
+                                return (
+                                    <div key={i} className={`mb-2 whitespace-pre-wrap ${outputClass}`}>
+                                        {content}
+                                    </div>
+                                );
+                            }
+                        })}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="absolute top-10 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <Link
+                            href={`/lab?command=${encodeURIComponent(rawCommands)}`}
+                            target="_blank"
+                            className="bg-primary-blue text-white px-2 py-1 text-xs rounded flex items-center gap-1 hover:bg-primary-blue/90 transition-colors shadow-lg"
+                            title="Run in Lab"
+                        >
+                            <Terminal size={12} /> Run
+                        </Link>
+                        <button onClick={() => handleRawCopy(rawCommands)} className="bg-white/10 backdrop-blur text-white px-2 py-1 text-xs rounded hover:bg-white/20 transition-colors flex items-center gap-1 shadow-lg border border-white/5">
+                            <Copy size={12} /> Copy
+                        </button>
+                    </div>
+                </div>
+            );
+
         case 'ciscoTerminal':
+            const cleanCode = cleanCommandOutput(block.data);
             return (
                 <div {...commonProps} className={`not-prose my-6 relative group ${highlightClass}`} dir="ltr">
                     <pre className="bg-black/80 rounded-lg border border-border-color font-mono text-base p-4 pt-8 overflow-x-auto text-left"><code className="text-green-400">{block.data}</code></pre>
-                    <button onClick={() => handleCopy(block.data)} className="absolute top-2 right-2 bg-gray-700 text-white px-2 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                        <Copy size={12} /> Copy
-                    </button>
+                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Link
+                            href={`/lab?command=${encodeURIComponent(cleanCode)}`}
+                            target="_blank"
+                            className="bg-primary-blue text-white px-2 py-1 text-xs rounded flex items-center gap-1 hover:bg-primary-blue/90 transition-colors"
+                            title="Run in Lab"
+                        >
+                            <Terminal size={12} /> Run
+                        </Link>
+                        <button onClick={() => handleCopy(block.data)} className="bg-gray-700 text-white px-2 py-1 text-xs rounded hover:bg-gray-600 transition-colors flex items-center gap-1">
+                            <Copy size={12} /> Copy
+                        </button>
+                    </div>
                 </div>
             );
         case 'note':
@@ -99,10 +308,10 @@ const BlockRenderer = ({ block, index, showTranslation, highlightedBlockIndex })
         case 'image':
             if (!block.data.url) return null;
             return (
-                <figure {...commonProps} className={`not-prose my-8 ${highlightClass}`}>
+                <div {...commonProps} className={`not-prose my-8 ${highlightClass}`}>
                     <img src={block.data.url} alt={block.data.caption || 'KawnHub Image'} className="w-full rounded-xl border border-border-color bg-black/20" />
-                    <figcaption className="text-center text-sm text-text-secondary mt-2">{block.data.caption}</figcaption>
-                </figure>
+                    <div className="text-center text-sm text-text-secondary mt-2">{block.data.caption}</div>
+                </div>
             );
         default: return null;
     }
@@ -120,6 +329,12 @@ export default function MaterialClient({ material, topics, initialTopic, allMate
     const { completedIds, toggleComplete } = useProgress();
 
     const [selectedTopic, setSelectedTopic] = useState(initialTopic);
+
+    // Process content blocks to group terminals
+    const processedContent = React.useMemo(() => {
+        return processContentBlocks(selectedTopic?.content);
+    }, [selectedTopic]);
+
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [isMaterialsMenuOpen, setIsMaterialsMenuOpen] = useState(false);
     const [showTranslation, setShowTranslation] = useState(false);
@@ -257,121 +472,97 @@ export default function MaterialClient({ material, topics, initialTopic, allMate
                     )}
                 </div>
 
-                <nav className="flex items-center gap-4">
-                    {/* Navigation Links */}
-                    <div className="hidden md:flex items-center gap-4">
-                        <Link href="/hub" className="text-text-secondary transition-colors hover:text-text-primary font-medium text-sm">المواد الدراسية</Link>
-                        <Link href="/lab" className="text-text-secondary transition-colors hover:text-text-primary font-medium text-sm">المختبر 🧪</Link>
-                        {(user?.role === 'admin' || user?.role === 'editor') && (
-                            <Link href="/admin" className="text-primary-purple hover:text-white transition-colors flex items-center gap-1 text-sm font-bold bg-primary-purple/10 px-3 py-1.5 rounded-lg border border-primary-purple/20">
-                                <LayoutDashboard size={16} /> <span>الإدارة</span>
-                            </Link>
-                        )}
-                        <Link href="/support" className="text-text-secondary hover:text-primary-blue transition-colors" title="المساعدة"><HelpCircle size={20} /></Link>
-                    </div>
-
-                    <div className="h-6 w-px bg-border-color hidden md:block"></div>
-
-                    {/* Search Button */}
+                <div className="flex items-center gap-4">
+                    {/* Search Trigger */}
                     <button
                         onClick={() => setIsSearchOpen(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors border border-transparent hover:border-border-color"
-                        title="بحث (Ctrl+K)"
+                        className="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors bg-surface-dark border border-border-color px-3 py-1.5 rounded-lg text-sm"
                     >
-                        <Search size={18} />
-                        <span className="hidden lg:inline text-xs opacity-70 border border-white/20 rounded px-1.5 py-0.5">Ctrl+K</span>
-                    </button>
-
-                    {/* Translation Toggle */}
-                    <button
-                        onClick={() => setShowTranslation(!showTranslation)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${showTranslation
-                            ? 'bg-primary-blue text-white shadow-lg shadow-primary-blue/20'
-                            : 'bg-surface-light text-text-secondary hover:text-text-primary border border-border-color'
-                            }`}
-                        title="تفعيل الترجمة العربية للشرح"
-                    >
-                        <span className="font-mono">EN/AR</span>
-                    </button>
-
-                    {/* Focus Mode Button */}
-                    <button
-                        onClick={() => setIsFocusMode(!isFocusMode)}
-                        className="p-2 rounded-lg text-text-secondary hover:text-primary-blue hover:bg-primary-blue/10 transition-colors"
-                        title="وضع التركيز"
-                    >
-                        <Maximize2 size={20} />
+                        <Search size={16} />
+                        <span className="hidden md:inline">بحث...</span>
+                        <kbd className="hidden md:inline-block text-[10px] font-mono bg-background-dark border border-border-color px-1.5 py-0.5 rounded text-text-secondary">⌘K</kbd>
                     </button>
 
                     <div className="h-6 w-px bg-border-color hidden md:block"></div>
 
-                    {user ? (
+                    <nav className="flex items-center gap-4">
+                        {/* Navigation Links */}
+                        <div className="hidden md:flex items-center gap-4">
+                            <Link href="/hub" className="text-text-secondary transition-colors hover:text-text-primary font-medium text-sm">المواد الدراسية</Link>
+                            <Link href="/lab" className="text-text-secondary transition-colors hover:text-text-primary font-medium text-sm">المختبر 🧪</Link>
+                            {(user?.role === 'admin' || user?.role === 'editor' || user?.role === 'owner') && (
+                                <Link href="/admin" className="text-primary-purple hover:text-white transition-colors flex items-center gap-1 text-sm font-bold bg-primary-purple/10 px-3 py-1.5 rounded-lg border border-primary-purple/20">
+                                    <LayoutDashboard size={16} /> <span>الإدارة</span>
+                                </Link>
+                            )}
+                            <Link href="/support" className="text-text-secondary hover:text-primary-blue transition-colors" title="المساعدة"><HelpCircle size={20} /></Link>
+                        </div>
+
+                        {/* User Menu */}
                         <div className="relative" ref={dropdownRef}>
-                            <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-2 focus:outline-none group">
-                                {user.photoURL ? (
-                                    <Image src={user.photoURL} alt={user.name || "الصورة الشخصية"} width={36} height={36} className="rounded-full border border-primary-blue/50 group-hover:border-primary-blue" />
-                                ) : (
-                                    <div className="w-9 h-9 rounded-full bg-primary-blue/20 flex items-center justify-center text-primary-blue font-bold border border-primary-blue/50">
-                                        {user.email?.[0].toUpperCase()}
-                                    </div>
-                                )}
-                                <ChevronDown size={16} className={`text-text-secondary transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                            <button
+                                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                                className="flex items-center gap-2 hover:bg-white/5 p-1 rounded-lg transition-colors"
+                            >
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-blue to-primary-purple flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-primary-blue/20">
+                                    {user && user.name ? user.name.charAt(0).toUpperCase() : <User size={16} />}
+                                </div>
                             </button>
+
                             {isUserMenuOpen && (
-                                <div className="absolute left-0 mt-2 w-56 rounded-xl border border-border-color bg-surface-dark shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 origin-top-left">
-                                    <div className="px-4 py-3 border-b border-border-color/50 mb-2">
-                                        <p className="text-sm font-bold text-text-primary truncate">{user.name}</p>
-                                        <p className="text-xs text-text-secondary truncate font-mono mt-0.5">{user.email}</p>
-                                    </div>
-                                    <Link href="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:bg-primary-blue/10 hover:text-primary-blue mx-2 rounded-lg">
-                                        <User size={16} /> <span>الملف الشخصي</span>
-                                    </Link>
-                                    <div className="my-2 border-t border-border-color/50 mx-4"></div>
-                                    <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 mx-2 rounded-lg text-right">
-                                        <LogOut size={16} /> <span>تسجيل خروج</span>
-                                    </button>
+                                <div className="absolute top-full left-0 mt-2 w-56 rounded-xl border border-border-color bg-surface-dark shadow-2xl py-2 animate-in fade-in slide-in-from-top-2 z-50">
+                                    {user ? (
+                                        <>
+                                            <div className="px-4 py-3 border-b border-border-color mb-2">
+                                                <div className="font-bold text-text-primary truncate">{user.name}</div>
+                                                <div className="text-xs text-text-secondary truncate">{user.email}</div>
+                                            </div>
+                                            <Link href="/profile" className="flex items-center gap-3 px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors">
+                                                <User size={16} /> الملف الشخصي
+                                            </Link>
+                                            <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-right">
+                                                <LogOut size={16} /> تسجيل الخروج
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <Link href="/login" className="flex items-center gap-3 px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors">
+                                            <LogIn size={16} /> تسجيل الدخول
+                                        </Link>
+                                    )}
                                 </div>
                             )}
                         </div>
-                    ) : (
-                        <Link href="/login" className="flex items-center gap-2 rounded-lg bg-primary-blue px-4 py-2 text-sm font-bold text-white hover:bg-primary-blue/90 transition-colors">
-                            <span>دخول</span> <LogIn size={16} />
-                        </Link>
-                    )}
-                </nav>
+                    </nav>
+                </div>
             </header>
 
-            {/* Exit Focus Mode Button */}
-            {isFocusMode && (
-                <button
-                    onClick={() => setIsFocusMode(false)}
-                    className="fixed top-4 left-4 z-50 p-2 rounded-full bg-surface-dark border border-border-color text-text-secondary hover:text-primary-blue shadow-lg animate-in fade-in zoom-in"
-                    title="إنهاء وضع التركيز"
-                >
-                    <Minimize2 size={20} />
-                </button>
-            )}
+            {/* Search Dialog */}
+            <SearchDialog isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
 
-            {/* Split View Container */}
-            <div className={`flex-1 grid grid-cols-1 ${isFocusMode ? 'md:grid-cols-1' : 'md:grid-cols-4'} min-h-0 transition-all duration-300`}>
-
+            <div className="flex flex-1 overflow-hidden">
                 {/* Sidebar (Right - RTL) */}
-                <aside className={`border-l border-border-color bg-surface-dark h-full overflow-y-auto custom-scrollbar p-6 ${isFocusMode ? 'hidden' : 'md:col-span-1'}`}>
-                    <div className="mb-4">
-                        <DynamicIcon name={material.icon || 'BookOpen'} size={32} className="text-primary-blue" />
+                <aside className={`w-80 bg-surface-dark border-l border-border-color flex-shrink-0 flex flex-col transition-all duration-300 ${isFocusMode ? '-mr-80 opacity-0' : ''}`}>
+                    <div className="p-4 border-b border-border-color flex justify-between items-center">
+                        <h2 className="font-bold text-text-primary">محتويات المادة</h2>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setShowTranslation(!showTranslation)}
+                                className={`text-xs px-2 py-1 rounded border transition-colors ${showTranslation ? 'bg-primary-blue/20 text-primary-blue border-primary-blue/30' : 'bg-transparent text-text-secondary border-border-color'}`}
+                                title="تبديل الترجمة"
+                            >
+                                {showTranslation ? 'EN/AR' : 'EN'}
+                            </button>
+                            <button onClick={() => setIsFocusMode(true)} className="text-text-secondary hover:text-primary-blue transition-colors" title="وضع التركيز">
+                                <Maximize2 size={18} />
+                            </button>
+                        </div>
                     </div>
-                    <h2 className="mb-1 text-2xl font-bold text-text-primary">{material.title}</h2>
-                    <p className="mb-4 text-sm text-text-secondary">{material.courseCode}</p>
-                    <hr className="border-border-color mb-4" />
-
-                    <h3 className="font-bold mb-2 text-text-secondary uppercase text-xs tracking-wider">شروحات المادة</h3>
-                    <ul className="space-y-2">
+                    <ul className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar" dir="rtl">
                         {topics.map((topic) => (
-                            <li key={topic.id} className="flex items-center gap-1 p-1 hover:bg-white/5 rounded-lg transition-colors group">
+                            <li key={topic.id} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 group ${selectedTopic?.id === topic.id ? 'bg-primary-blue/10 border border-primary-blue/20' : 'hover:bg-white/5 border border-transparent'}`}>
                                 <button
-                                    onClick={() => toggleComplete(topic.id)}
-                                    className={`shrink-0 p-1 rounded-full transition-colors ${completedIds.includes(topic.id) ? 'text-green-500' : 'text-text-secondary/30 hover:text-green-500/50'}`}
-                                    title={completedIds.includes(topic.id) ? "مكتمل" : "تحديد كمكتمل"}
+                                    onClick={(e) => { e.stopPropagation(); toggleComplete(topic.id); }}
+                                    className={`flex-shrink-0 transition-colors ${completedIds.includes(topic.id) ? 'text-green-500' : 'text-text-secondary group-hover:text-text-primary'}`}
                                 >
                                     {completedIds.includes(topic.id) ? <CheckCircle size={16} /> : <Circle size={16} />}
                                 </button>
@@ -397,8 +588,8 @@ export default function MaterialClient({ material, topics, initialTopic, allMate
                 </aside>
 
                 {/* Main Content (Left - LTR for English Content) */}
-                <main className={`bg-background-dark h-full overflow-y-auto custom-scrollbar relative ${isFocusMode ? 'col-span-1' : 'md:col-span-3'}`} ref={mainContentRef}>
-                    <div className="max-w-4xl mx-auto p-8 pb-32">
+                <main className={`bg-background-dark h-full overflow-y-auto custom-scrollbar relative w-full ${isFocusMode ? 'col-span-1' : 'md:col-span-3'}`} ref={mainContentRef}>
+                    <div className="max-w-4xl mx-auto p-8 pb-32 w-full text-left" dir="ltr">
                         {/* Topic Header */}
                         <div className="mb-8 pb-8 border-b border-border-color">
                             <div className="flex items-center gap-3 text-sm text-text-secondary mb-4">
@@ -445,7 +636,7 @@ export default function MaterialClient({ material, topics, initialTopic, allMate
 
                         {/* Content Blocks */}
                         <div className="prose prose-invert max-w-none">
-                            {selectedTopic.content?.map((block, index) => (
+                            {processedContent?.map((block, index) => (
                                 <BlockRenderer
                                     key={index}
                                     index={index}
@@ -473,7 +664,7 @@ export default function MaterialClient({ material, topics, initialTopic, allMate
                                 ) : (
                                     <>
                                         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                                        <CheckCircle size={24} />
+                                        <Circle size={24} />
                                         <span>تحديد كمكتمل</span>
                                     </>
                                 )}
@@ -481,63 +672,55 @@ export default function MaterialClient({ material, topics, initialTopic, allMate
                         </div>
 
                         {/* Navigation Footer */}
-                        <div className="mt-16 pt-8 border-t border-border-color flex justify-between items-center">
-                            {(() => {
-                                const currentIndex = topics.findIndex(t => t.id === selectedTopic.id);
-                                const prevTopic = topics[currentIndex - 1];
-                                const nextTopic = topics[currentIndex + 1];
+                        <div className="flex justify-between items-center pt-8 border-t border-border-color">
+                            {/* Previous Topic */}
+                            {topics.findIndex(t => t.id === selectedTopic.id) > 0 ? (
+                                <Link
+                                    href={`/materials/${material.slug}?topic=${topics[topics.findIndex(t => t.id === selectedTopic.id) - 1].id}`}
+                                    onClick={() => handleTopicSelect(topics[topics.findIndex(t => t.id === selectedTopic.id) - 1])}
+                                    className="flex items-center gap-2 text-text-secondary hover:text-primary-blue transition-colors group"
+                                >
+                                    <div className="p-2 rounded-full bg-surface-dark border border-border-color group-hover:border-primary-blue/50 transition-colors">
+                                        <ArrowRight size={16} className="rotate-180" />
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs text-text-secondary/50">الدرس السابق</div>
+                                        <div className="font-bold text-sm">{topics[topics.findIndex(t => t.id === selectedTopic.id) - 1].title}</div>
+                                    </div>
+                                </Link>
+                            ) : <div></div>}
 
-                                return (
-                                    <>
-                                        {prevTopic ? (
-                                            <Link
-                                                href={`/materials/${material.slug}?topic=${prevTopic.id}`}
-                                                onClick={() => handleTopicSelect(prevTopic)}
-                                                className="flex items-center gap-3 text-text-secondary hover:text-primary-blue transition-colors group"
-                                            >
-                                                <div className="p-2 rounded-full bg-surface-dark border border-border-color group-hover:border-primary-blue transition-colors">
-                                                    <ArrowRight size={20} className="rotate-180" />
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="text-xs text-text-secondary/50">السابق</div>
-                                                    <div className="font-bold">{prevTopic.title}</div>
-                                                </div>
-                                            </Link>
-                                        ) : <div></div>}
-
-                                        {nextTopic ? (
-                                            <Link
-                                                href={`/materials/${material.slug}?topic=${nextTopic.id}`}
-                                                onClick={() => handleTopicSelect(nextTopic)}
-                                                className="flex items-center gap-3 text-text-secondary hover:text-primary-blue transition-colors group"
-                                            >
-                                                <div className="text-left">
-                                                    <div className="text-xs text-text-secondary/50">التالي</div>
-                                                    <div className="font-bold">{nextTopic.title}</div>
-                                                </div>
-                                                <div className="p-2 rounded-full bg-surface-dark border border-border-color group-hover:border-primary-blue transition-colors">
-                                                    <ArrowRight size={20} />
-                                                </div>
-                                            </Link>
-                                        ) : <div></div>}
-                                    </>
-                                );
-                            })()}
+                            {/* Next Topic */}
+                            {topics.findIndex(t => t.id === selectedTopic.id) < topics.length - 1 ? (
+                                <Link
+                                    href={`/materials/${material.slug}?topic=${topics[topics.findIndex(t => t.id === selectedTopic.id) + 1].id}`}
+                                    onClick={() => handleTopicSelect(topics[topics.findIndex(t => t.id === selectedTopic.id) + 1])}
+                                    className="flex items-center gap-2 text-text-secondary hover:text-primary-blue transition-colors group text-left"
+                                >
+                                    <div className="text-left">
+                                        <div className="text-xs text-text-secondary/50">الدرس التالي</div>
+                                        <div className="font-bold text-sm">{topics[topics.findIndex(t => t.id === selectedTopic.id) + 1].title}</div>
+                                    </div>
+                                    <div className="p-2 rounded-full bg-surface-dark border border-border-color group-hover:border-primary-blue/50 transition-colors">
+                                        <ArrowRight size={16} />
+                                    </div>
+                                </Link>
+                            ) : <div></div>}
                         </div>
                     </div>
+
+                    {/* Focus Mode Exit Button */}
+                    {isFocusMode && (
+                        <button
+                            onClick={() => setIsFocusMode(false)}
+                            className="fixed bottom-8 right-8 bg-primary-blue text-white p-3 rounded-full shadow-lg hover:scale-110 transition-transform z-50"
+                            title="خروج من وضع التركيز"
+                        >
+                            <Minimize2 size={24} />
+                        </button>
+                    )}
                 </main>
             </div>
-
-            {/* Search Dialog */}
-            <SearchDialog
-                isOpen={isSearchOpen}
-                onClose={() => setIsSearchOpen(false)}
-                topics={topics}
-                onSelectTopic={(topic) => {
-                    handleTopicSelect(topic);
-                    setIsSearchOpen(false);
-                }}
-            />
         </div>
     );
 }

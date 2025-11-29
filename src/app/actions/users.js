@@ -16,8 +16,8 @@ export async function saveUserFull(formData) {
   try {
     // 1. التعامل مع القائمة البيضاء (Admins Collection)
     const adminRef = doc(db, 'admins', email);
-    
-    if (role === 'admin' || role === 'editor') {
+
+    if (role === 'admin' || role === 'editor' || role === 'owner') {
       // إذا اخترت له رتبة إدارية، نضيفه للقائمة البيضاء
       await setDoc(adminRef, { email, role });
     } else {
@@ -40,15 +40,15 @@ export async function saveUserFull(formData) {
     };
 
     if (userSnap.exists()) {
-        await updateDoc(userRef, userData);
+      await updateDoc(userRef, userData);
     } else {
-        // إذا كنا نضيف مستخدماً جديداً يدوياً وليس له حساب
-        await setDoc(userRef, {
-            ...userData,
-            createdAt: serverTimestamp(),
-            photoURL: null, // صورة افتراضية
-            favorites: []
-        });
+      // إذا كنا نضيف مستخدماً جديداً يدوياً وليس له حساب
+      await setDoc(userRef, {
+        ...userData,
+        createdAt: serverTimestamp(),
+        photoURL: null, // صورة افتراضية
+        favorites: []
+      });
     }
 
     revalidatePath('/admin/users');
@@ -66,7 +66,7 @@ export async function deleteUserAction(email) {
     // نحذف من المكانين لضمان التنظيف الكامل
     await deleteDoc(doc(db, 'admins', email));
     await deleteDoc(doc(db, 'users', email));
-    
+
     revalidatePath('/admin/users');
     return { success: true, message: 'تم حذف المستخدم وكافة بياناته نهائياً' };
   } catch (error) {

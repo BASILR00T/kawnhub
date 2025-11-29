@@ -98,8 +98,73 @@ export default function LegacyToolsPage() {
                 // Use the ID from migration (v1-...)
                 const docRef = doc(db, 'topics', topic.id);
 
+                // --- Transform Content Blocks (Cisco -> New Terminal) ---
+                const transformedContent = (topic.content || []).flatMap(block => {
+                    if (block.type === 'ciscoTerminal') {
+                        const lines = block.data.split('\n');
+                        const newBlocks = [];
+                        let currentOutput = [];
+
+                        // Regex to identify prompts (Cisco style or generic)
+                        // Matches: Switch>, Router#, S1(config)#, C:\Users>, etc.
+                        const promptRegex = /^([\w-]+(?:\([^\)]+\))?[>#]|[A-Z]:\\.*>)\s*(.*)/;
+
+                        for (const line of lines) {
+                            const match = line.match(promptRegex);
+                            if (match) {
+                                // If we have pending output, push it first
+                                if (currentOutput.length > 0) {
+                                    newBlocks.push({
+                                        type: 'terminal_output',
+                                        data: currentOutput.join('\n')
+                                    });
+                                    currentOutput = [];
+                                }
+
+                                // Extract command (remove prompt for cleaner copy, or keep it?)
+                                // User wants "Smart Copy", so we should probably store just the command.
+                                // But for display, we might want the prompt. 
+                                // However, terminal_command adds '$'. 
+                                // Let's store JUST the command for now to enable the "Smart Copy" feature fully.
+                                // The new renderer adds '$', which is generic. 
+                                // If we want to preserve "Switch>", we might need a custom prompt feature later.
+                                // For now, let's stick to the user's request of "new block system".
+                                let cmd = match[2].trim();
+
+                                // Remove comments
+                                const commentIndex = cmd.indexOf(' #');
+                                if (commentIndex !== -1) {
+                                    cmd = cmd.substring(0, commentIndex).trim();
+                                }
+
+                                if (cmd) {
+                                    newBlocks.push({
+                                        type: 'terminal_command',
+                                        data: { cmd: cmd, style: 'cisco' }
+                                    });
+                                }
+                            } else {
+                                // It's output
+                                currentOutput.push(line);
+                            }
+                        }
+
+                        // Push remaining output
+                        if (currentOutput.length > 0) {
+                            newBlocks.push({
+                                type: 'terminal_output',
+                                data: currentOutput.join('\n')
+                            });
+                        }
+
+                        return newBlocks.length > 0 ? newBlocks : block; // Fallback if empty
+                    }
+                    return block;
+                });
+
                 batch.set(docRef, {
                     ...topic,
+                    content: transformedContent,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });

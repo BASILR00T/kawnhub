@@ -11,14 +11,31 @@ const V1_DIR = path.join(PROJECT_ROOT, 'V1 content HTML');
 const OUTPUT_FILE = path.join(PROJECT_ROOT, 'src/data/migrated_topics.json');
 const SEARCH_DATA_FILE = path.join(V1_DIR, 'search_data.json');
 
-// Material Mapping
-const MATERIAL_MAPPING = {
+// Material Mapping (Folder based)
+const FOLDER_MAPPING = {
     'Network2': 'networks-1',
     'NOSs': 'os-1',
     'Programming': 'programming-1',
     'PCCT': 'maintenance',
     'Network1': 'networks-intro'
 };
+
+// Keyword Mapping (Filename based for new files)
+const KEYWORD_MAPPING = [
+    { keyword: 'Hardware', slug: 'maintenance' },
+    { keyword: 'PCCT', slug: 'maintenance' },
+    { keyword: 'NOS', slug: 'os-1' },
+    { keyword: 'Linux', slug: 'os-1' },
+    { keyword: 'Network1', slug: 'networks-intro' },
+    { keyword: 'Network2', slug: 'networks-1' },
+    { keyword: 'Switch', slug: 'networks-1' },
+    { keyword: 'Routing', slug: 'networks-1' },
+    { keyword: 'VLAN', slug: 'networks-1' },
+    { keyword: 'DHCP', slug: 'networks-1' },
+    { keyword: 'Web', slug: 'programming-1' },
+    { keyword: 'Programming', slug: 'programming-1' },
+    { keyword: 'Python', slug: 'programming-1' }
+];
 
 // Helper to clean text
 const cleanText = (text) => {
@@ -172,37 +189,69 @@ const parseHtmlContent = (html) => {
 };
 
 async function migrate() {
-    console.log('🚀 Starting V1 Content Migration (Refined)...');
+    console.log('🚀 Starting V1 Content Migration (Auto-Discovery)...');
 
     try {
         const searchDataRaw = fs.readFileSync(SEARCH_DATA_FILE, 'utf8');
         const searchData = JSON.parse(searchDataRaw);
 
+        // Create a map of filename -> searchData entry
+        const searchDataMap = {};
+        searchData.forEach(item => {
+            const filename = path.basename(item.url);
+            searchDataMap[filename] = item;
+        });
+
         const migratedTopics = [];
         let skippedCount = 0;
 
-        for (const item of searchData) {
-            const relativeUrl = item.url;
+        // Get all HTML files in directory
+        const files = fs.readdirSync(V1_DIR).filter(f => f.endsWith('.html'));
 
-            // 1. Determine Material Slug (using the folder name from the JSON url)
-            const rootFolder = relativeUrl.split('/')[0];
-            const materialSlug = MATERIAL_MAPPING[rootFolder];
-
-            if (!materialSlug) {
-                // console.warn(`⚠️ No mapping for folder: ${rootFolder}`);
-                continue;
-            }
-
-            // 2. Resolve File Path (Flat Structure: File is directly in V1_DIR)
-            const filename = path.basename(relativeUrl);
+        for (const filename of files) {
             const fullPath = path.join(V1_DIR, filename);
+            const htmlContent = fs.readFileSync(fullPath, 'utf8');
 
-            if (!fs.existsSync(fullPath)) {
-                console.warn(`❌ File not found: ${fullPath} (Original URL: ${relativeUrl})`);
-                continue;
+            let topicData = {};
+
+            // 1. Check if in search_data.json
+            if (searchDataMap[filename]) {
+                const item = searchDataMap[filename];
+                topicData = {
+                    id: `v1-${item.id}`,
+                    title: item.title,
+                    materialSlug: null, // Will resolve below
+                    folder: item.url.split('/')[0]
+                };
+            } else {
+                // 2. New File - Generate Metadata
+                console.log(`🆕 Found new file: ${filename}`);
+                const titleMatch = htmlContent.match(/<title>(.*?)<\/title>/i) || htmlContent.match(/<h1>(.*?)<\/h1>/i);
+                const title = titleMatch ? cleanText(titleMatch[1]) : filename.replace('.html', '').replace(/_/g, ' ');
+
+                topicData = {
+                    id: `v1-new-${filename.replace('.html', '')}`,
+                    title: title,
+                    materialSlug: null,
+                    folder: null
+                };
             }
 
-            const htmlContent = fs.readFileSync(fullPath, 'utf8');
+            // 3. Resolve Material Slug
+            if (topicData.folder && FOLDER_MAPPING[topicData.folder]) {
+                topicData.materialSlug = FOLDER_MAPPING[topicData.folder];
+            } else {
+                // Try keyword matching
+                const match = KEYWORD_MAPPING.find(m => filename.toLowerCase().includes(m.keyword.toLowerCase()));
+                if (match) {
+                    topicData.materialSlug = match.slug;
+                } else {
+                    topicData.materialSlug = 'uncategorized';
+                    console.warn(`⚠️ Could not categorize: ${filename} -> Defaulting to 'uncategorized'`);
+                }
+            }
+
+            // 4. Parse Content
             const contentBlocks = parseHtmlContent(htmlContent);
 
             if (!contentBlocks || contentBlocks.length === 0) {
@@ -211,20 +260,18 @@ async function migrate() {
             }
 
             migratedTopics.push({
-                id: `v1-${item.id}`,
-                title: item.title,
-                materialSlug: materialSlug,
+                ...topicData,
                 content: contentBlocks,
-                order: item.id,
+                order: topicData.id, // Simple ordering
                 tags: ['v1-migration']
             });
         }
 
         fs.writeFileSync(OUTPUT_FILE, JSON.stringify(migratedTopics, null, 2));
         console.log(`✅ Migration Complete!`);
-        console.log(`📄 Processed: ${searchData.length}`);
+        console.log(`📂 Total Files Scanned: ${files.length}`);
         console.log(`✨ Migrated: ${migratedTopics.length}`);
-        console.log(`⏭️ Skipped (Hubs/Empty): ${skippedCount}`);
+        console.log(`⏭️ Skipped (Empty): ${skippedCount}`);
         console.log(`💾 Saved to: ${OUTPUT_FILE}`);
 
     } catch (error) {

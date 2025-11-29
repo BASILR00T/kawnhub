@@ -292,7 +292,7 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
                             المختبر 🧪
                         </Link>
 
-                        {(user?.role === 'admin' || user?.role === 'editor') && (
+                        {(user?.role === 'admin' || user?.role === 'editor' || user?.role === 'owner') && (
                             <Link href="/admin" className="text-primary-purple hover:text-white transition-colors flex items-center gap-1 text-sm font-bold bg-primary-purple/10 px-3 py-1.5 rounded-lg border border-primary-purple/20">
                                 <LayoutDashboard size={16} />
                                 <span>الإدارة</span>
@@ -337,7 +337,7 @@ export default function HubInterface({ initialMaterials = [], initialTopics = []
                                         <p className="text-xs text-text-secondary truncate font-mono mt-0.5">{user.email}</p>
                                     </div>
 
-                                    {(user?.role === 'admin' || user?.role === 'editor') && (
+                                    {(user?.role === 'admin' || user?.role === 'editor' || user?.role === 'owner') && (
                                         <Link href="/admin" className="flex items-center gap-3 px-4 py-2.5 text-sm text-primary-purple hover:bg-primary-purple/10 transition-colors mx-2 rounded-lg">
                                             <LayoutDashboard size={16} />
                                             <span>لوحة التحكم</span>

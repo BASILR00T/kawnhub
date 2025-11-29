@@ -1,113 +1,139 @@
-'use client'; // This component needs to be interactive
+'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import TerminalComponent from '@/components/lab/TerminalComponent';
+import { CheckCircle, Circle, Terminal, BookOpen, ArrowRight } from 'lucide-react';
 
-// --- Reusable Bento Card for the 'ls' command ---
-const BentoCard = ({ icon, title, description }) => (
-    <div className="flex flex-col justify-between rounded-xl border border-border-color bg-surface-dark p-6 backdrop-blur-xl transition-transform duration-300 ease-in-out hover:-translate-y-1">
-        <div>
-            <div className="mb-4 text-3xl text-text-secondary">{icon}</div>
-            <h3 className="text-lg font-bold">{title}</h3>
-            <p className="mt-2 text-sm text-text-secondary">{description}</p>
-        </div>
-    </div>
-);
+const challenges = [
+    {
+        id: 1,
+        title: 'البداية: استكشاف الملفات',
+        description: 'استخدم الأمر ls لعرض الملفات الموجودة في المجلد الحالي.',
+        hint: 'اكتب ls ثم اضغط Enter',
+        check: (history) => history.some(h => h.content === 'ls')
+    },
+    {
+        id: 2,
+        title: 'إنشاء مجلد جديد',
+        description: 'قم بإنشاء مجلد جديد باسم "projects".',
+        hint: 'استخدم الأمر mkdir projects',
+        check: (history) => history.some(h => h.content && h.content.includes('mkdir projects'))
+    },
+    {
+        id: 3,
+        title: 'الدخول للمجلد',
+        description: 'ادخل إلى المجلد الذي أنشأته للتو.',
+        hint: 'استخدم الأمر cd projects',
+        check: (history) => history.some(h => h.content && h.content.includes('cd projects'))
+    },
+    {
+        id: 4,
+        title: 'إنشاء ملف',
+        description: 'أنشئ ملفاً جديداً باسم "app.py" داخل المجلد.',
+        hint: 'استخدم الأمر touch app.py',
+        check: (history) => history.some(h => h.content && h.content.includes('touch app.py'))
+    },
+    {
+        id: 5,
+        title: 'أين أنا؟',
+        description: 'تأكد من مسارك الحالي.',
+        hint: 'استخدم الأمر pwd',
+        check: (history) => history.some(h => h.content === 'pwd')
+    }
+];
 
-// --- The Main Lab Page Component ---
 export default function LabPage() {
-    const [history, setHistory] = useState([]);
-    const [input, setInput] = useState('');
-    const terminalRef = useRef(null);
+    const [completedChallenges, setCompletedChallenges] = useState([]);
+    const [initialCommand, setInitialCommand] = useState(null);
 
-    const commands = {
-        'help': 'Available commands:\n  <span class="text-primary-blue">help</span>     - Show this list of commands.\n  <span class="text-primary-blue">ls</span>       - List all available subjects.\n  <span class="text-primary-blue">whoami</span>   - Display user information.\n  <span class="text-primary-blue">clear</span>    - Clear the terminal screen.',
-        'whoami': 'User: Student\nGoal: Mastering Tech Skills',
-        'ls': (
-            <div className="my-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                <BentoCard icon="💻" title="PC Config" description="أوامر فحص النظام وإصلاح مشاكل ويندوز." />
-                <BentoCard icon="🐧" title="NOS" description="إدارة المستخدمين والصلاحيات في Linux." />
-                <BentoCard icon="🌐" title="Network 2" description="بروتوكولات التوجيه وإعدادات السويتش." />
-            </div>
-        )
-    };
-
-    // Effect for the initial welcome message
     useEffect(() => {
-        setHistory([
-            { type: 'info', text: 'Initializing KawnHub v2.0 kernel...' },
-            { type: 'success', text: 'System ready. Welcome, student.' },
-            { type: 'info', text: "Type 'help' to see available commands." }
-        ]);
+        // Read command from URL
+        const params = new URLSearchParams(window.location.search);
+        const commandParam = params.get('command');
+        if (commandParam) {
+            setInitialCommand(commandParam);
+        }
     }, []);
-    
-    // Effect to scroll to the bottom on new output
-    useEffect(() => {
-        if (terminalRef.current) {
-            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-        }
-    }, [history]);
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            const command = input.trim().toLowerCase();
-            const newHistory = [...history, { type: 'command', text: command }];
+    const handleCommandExecuted = (cmd) => {
+        // Simple check logic
+        const newCompleted = [...completedChallenges];
 
-            if (command === 'clear') {
-                setHistory([]);
-            } else if (commands[command]) {
-                newHistory.push({ type: 'response', content: commands[command] });
-                setHistory(newHistory);
-            } else if (command) {
-                newHistory.push({ type: 'error', text: `Command not found: ${command}` });
-                setHistory(newHistory);
-            } else {
-                 setHistory(newHistory);
-            }
-            setInput('');
-        }
+        if (cmd === 'ls' && !newCompleted.includes(1)) newCompleted.push(1);
+        if (cmd.includes('mkdir projects') && !newCompleted.includes(2)) newCompleted.push(2);
+        if (cmd.includes('cd projects') && !newCompleted.includes(3)) newCompleted.push(3);
+        if (cmd.includes('touch app.py') && !newCompleted.includes(4)) newCompleted.push(4);
+        if (cmd === 'pwd' && !newCompleted.includes(5)) newCompleted.push(5);
+
+        setCompletedChallenges(newCompleted);
     };
 
     return (
-        <div 
-            className="p-4 md:p-8 font-mono text-base bg-background-dark min-h-screen"
-            onClick={() => document.getElementById('commandInput').focus()}
-        >
-            <div className="absolute top-4 left-4">
-                <Link href="/" className="text-text-secondary hover:text-primary-blue transition-colors">
-                    &larr; العودة للرئيسية
+        <div className="min-h-screen bg-background-dark text-text-primary p-6 md:p-12">
+            <header className="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold flex items-center gap-3">
+                        <Terminal className="text-primary-blue" />
+                        المختبر التفاعلي
+                        <span className="text-xs bg-primary-blue/10 text-primary-blue px-2 py-1 rounded border border-primary-blue/20">Beta</span>
+                    </h1>
+                    <p className="text-text-secondary mt-2">بيئة محاكاة لنظام Linux لتطبيق الأوامر بشكل عملي وآمن.</p>
+                </div>
+                <Link href="/" className="text-text-secondary hover:text-white flex items-center gap-2 transition-colors">
+                    العودة للرئيسية <ArrowRight size={16} className="rtl:rotate-180" />
                 </Link>
-            </div>
-            <div ref={terminalRef} className="h-full overflow-y-auto">
-                {history.map((line, index) => (
-                    <div key={index} className="mb-2 whitespace-pre-wrap">
-                        {line.type === 'command' && (
-                            <div>
-                                <span className="text-primary-blue">KawnHub:~$</span>
-                                <span className="ml-2">{line.text}</span>
-                            </div>
-                        )}
-                        {line.type === 'response' && (
-                            typeof line.content === 'string' 
-                            ? <div dangerouslySetInnerHTML={{ __html: line.content }} />
-                            : <div>{line.content}</div>
-                        )}
-                        {line.type === 'info' && <p className="text-text-secondary">{line.text}</p>}
-                        {line.type === 'success' && <p className="text-green-400">{line.text}</p>}
-                        {line.type === 'error' && <p className="text-red-500">{line.text}</p>}
+            </header>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Sidebar: Challenges */}
+                <div className="lg:col-span-4 space-y-6 order-2 lg:order-1">
+                    <div className="bg-surface-dark border border-border-color rounded-2xl p-6">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <BookOpen className="text-primary-purple" size={20} />
+                            التحديات
+                        </h2>
+                        <div className="space-y-4">
+                            {challenges.map((challenge) => {
+                                const isCompleted = completedChallenges.includes(challenge.id);
+                                return (
+                                    <div
+                                        key={challenge.id}
+                                        className={`p-4 rounded-xl border transition-all duration-300 ${isCompleted ? 'bg-green-500/10 border-green-500/30' : 'bg-background-dark border-border-color'}`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className={`mt-1 ${isCompleted ? 'text-green-500' : 'text-text-secondary'}`}>
+                                                {isCompleted ? <CheckCircle size={20} /> : <Circle size={20} />}
+                                            </div>
+                                            <div>
+                                                <h3 className={`font-bold ${isCompleted ? 'text-green-400' : 'text-text-primary'}`}>{challenge.title}</h3>
+                                                <p className="text-sm text-text-secondary mt-1">{challenge.description}</p>
+                                                {!isCompleted && (
+                                                    <div className="mt-2 text-xs font-mono text-primary-blue bg-primary-blue/5 px-2 py-1 rounded inline-block">
+                                                        تلميح: {challenge.hint}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-                ))}
-                <div className="flex items-center">
-                    <span className="text-primary-blue">KawnHub:~$</span>
-                    <input
-                        id="commandInput"
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="flex-grow bg-transparent border-none text-text-primary focus:outline-none ml-2"
-                        autoFocus
+                </div>
+
+                {/* Main: Terminal */}
+                <div className="lg:col-span-8 order-1 lg:order-2">
+                    <TerminalComponent
+                        onCommand={handleCommandExecuted}
+                        initialCommand={initialCommand}
                     />
+
+                    <div className="mt-6 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 text-sm text-text-secondary">
+                        <p className="font-bold text-blue-400 mb-1">ملاحظة هامة:</p>
+                        هذه بيئة محاكاة (Simulator) تعمل على متصفحك فقط. الملفات التي تنشئها هنا مؤقتة وستختفي عند تحديث الصفحة.
+                        الهدف هو التدريب على كتابة الأوامر والتعامل مع الطرفية.
+                    </div>
                 </div>
             </div>
         </div>
