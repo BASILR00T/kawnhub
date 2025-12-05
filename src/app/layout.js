@@ -22,9 +22,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="ar" dir="rtl">
       <body className={`${cairo.variable} ${inter.variable} font-sans bg-background-dark text-text-primary`}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        {children}
       </body>
     </html>
   );
