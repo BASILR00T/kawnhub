@@ -1,5 +1,5 @@
 import './globals.css';
-import { AuthProvider } from '@/context/AuthContext';
+
 import { Cairo, Inter } from 'next/font/google';
 
 const cairo = Cairo({ subsets: ['arabic'], variable: '--font-cairo' });
